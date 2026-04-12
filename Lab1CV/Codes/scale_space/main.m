@@ -13,7 +13,7 @@ addpath('../lib/');
 addpath('../data/');
 
 % INPUT DATA: reading a picture
-I = imread('img3.jpg');
+I = imread('landscape-b.jpg');
 
 % let's only work in the gray scale. 
 [a,b,c] = size(I);
