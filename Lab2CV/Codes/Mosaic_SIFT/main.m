@@ -18,10 +18,12 @@ imwrite(I1,'image1.pgm');
 imwrite(I2,'image2.pgm');
 
 
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%
-	%%%% MISSING CODE HERE; compute matches based on SIFT
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% MISSING CODE HERE; compute matches based on SIFT
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% Compute values usign match.m
+[desc1, loca1, desc2, loca2, matchings, mnb] = match('image1.pgm', 'image2.pgm');
 
 idx1 = find(matchings);
 idx2 = matchings(idx1);
@@ -29,10 +31,18 @@ loca1 = [loca1(idx1,2),loca1(idx1,1)];
 loca2 = [loca2(idx2,2),loca2(idx2,1)];
 
 
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%
-	%%%% MISSING CODE HERE; compute the Homography H, and the inliers
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%
- 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% MISSING CODE HERE; compute the Homography H, and the inliers
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Prepare points for RANSAC. 
+pts1 = loca1'; % Transpose to get 2xN
+pts2 = loca2'; % Transpose to get 2xN
+
+% Run RANSAC (1.0 is the pixel threshold)
+[H, inliers] = ransacfithomography(pts1, pts2, 1.0);
+
+% Normalizing
+H = H ./ H(3,3); 
 
 tform = maketform('projective',H');
 I21 = imtransform(I2,tform); 
