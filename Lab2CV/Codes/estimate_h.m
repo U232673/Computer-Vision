@@ -8,25 +8,25 @@ function [H, error] = estimate_h(im1_path, im2_path, GT_H_path)
     gt_full = fullfile(originalDir, GT_H_path);
 
     try
-        % 1. Move to the SIFT directory to run the binary
+        % Move to the SIFT directory to run the binary
         cd('Lowe_SIFT');
         
-        % 2. Use the provided match.m logic to get features and matches
+        % Use the provided match.m logic to get features and matches
         % This function internally calls sift.m and applies the 0.6 ratio
         [~, loc1, ~, loc2, matchings, ~] = match(im1_full, im2_full);
         
-        % 3. Format points for RANSAC using the provided helper
+        % Format points for RANSAC using the provided helper
         [pts1, pts2] = get_matching_pts(loc1, loc2, matchings);
         
-        % 4. Return to main folder to access 'lib' functions
+        % Return to main folder to access 'lib' functions
         cd(originalDir);
         addpath('lib');
         
-        % 5. Apply RANSAC to estimate Homography [cite: 50]
+        % Apply RANSAC to estimate Homography [cite: 50]
         % 1.0 is the pixel threshold for inliers
         [H, ~] = ransacfithomography(pts1, pts2, 1.0);
         
-        % 6. Calculate Error with respect to Ground Truth [cite: 51]
+        % Calculate Error with respect to Ground Truth [cite: 51]
         GT_H = load(gt_full, '-ascii');
 
         % Normalize Estimated H
