@@ -9,8 +9,9 @@
 \usepackage{arydshln}
 \usepackage[a4paper, margin=1in]{geometry}
 
-\title{Laboratory 1}
-\author{Víctor Brull Rico}
+\title{Laboratory 2}
+\author{Víctor Brull\and
+        Guillem Martínez}
 \date{April 2026}
 
 \begin{document}
@@ -19,7 +20,40 @@
 
 \section{Introduction}
 
+Image feature matching is a key step in many computer vision tasks, such as
+3D reconstruction, SLAM, visual localization, and panorama stitching. The goal of
+this laboratory is to find reliable point correspondences between two or more images of the 
+same scene, which may differ in viewpoint, scale, rotation, or illumination.
 
+The most classical approach uses hand-crafted local feature descriptors. Among
+them, SIFT~\cite{Lowe2004} is one of the most widely used methods. It detects
+keypoints across scale space, assigns them an orientation, and describes them
+with a 128-dimensional gradient histogram. This makes SIFT invariant to scale
+and rotation, and partly robust to illumination changes. Since SIFT matches
+always contain outliers, RANSAC is used on top of it to robustly estimate
+homographies between image pairs.
+
+Besides SIFT, many other descriptors have been developed. Binary descriptors
+like ORB and BRISK are faster and suitable for real-time use. Methods like SURF
+speed up detection with integral images, while FAST uses minimal computation.
+However, all these methods share a key limitation: each descriptor is computed
+locally, without any knowledge of the other image. This makes them unreliable
+in textureless regions, repetitive patterns, or under motion blur.
+
+To overcome this, LoFTR~\cite{Sun2021} uses a Transformer with self-attention 
+to build dense correspondences at coarse resolution, then refines them to sub-pixel
+accuracy. Its global receptive field allows matching even in low-texture regions
+where classical detectors fail. Moreover, LightGlue~\cite{Lindenberger2023}
+introduces a sparse deep matcher that works on top of any local detector. It
+uses adaptive depth and width to stop early on easy pairs and prune poor
+keypoints, achieving high accuracy at lower computational cost.
+
+This report is organized as follows. Section~\ref{sec:Methods} describes the
+theoretical background of each method. Section~\ref{sec:Experiments} presents
+results for SIFT-based homography estimation and mosaicking, a comparison of
+classical descriptors under synthetic transformations, and an evaluation of
+LoFTR and LightGlue on challenging image pairs. Finally, Section~\ref{sec:Conclusion} 
+draws conclusions and discusses the trade-offs between classical and data-driven pipelines.
 
 \section{Methods}
 
