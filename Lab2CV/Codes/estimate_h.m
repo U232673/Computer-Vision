@@ -1,8 +1,5 @@
 function [H, error] = estimate_h(im1_path, im2_path, GT_H_path)
-    % Save the original directory to return later
     originalDir = pwd;
-    
-    % Ensure the paths are absolute so they work after we 'cd'
     im1_full = fullfile(originalDir, im1_path);
     im2_full = fullfile(originalDir, im2_path);
     gt_full = fullfile(originalDir, GT_H_path);
@@ -12,7 +9,6 @@ function [H, error] = estimate_h(im1_path, im2_path, GT_H_path)
         cd('Lowe_SIFT');
         
         % Use the provided match.m logic to get features and matches
-        % This function internally calls sift.m and applies the 0.6 ratio
         [~, loc1, ~, loc2, matchings, ~] = match(im1_full, im2_full);
         
         % Format points for RANSAC using the provided helper
@@ -22,11 +18,11 @@ function [H, error] = estimate_h(im1_path, im2_path, GT_H_path)
         cd(originalDir);
         addpath('lib');
         
-        % Apply RANSAC to estimate Homography [cite: 50]
+        % Apply RANSAC to estimate Homography
         % 1.0 is the pixel threshold for inliers
         [H, ~] = ransacfithomography(pts1, pts2, 1.0);
         
-        % Calculate Error with respect to Ground Truth [cite: 51]
+        % Calculate Error with respect to Ground Truth
         GT_H = load(gt_full, '-ascii');
 
         % Normalize Estimated H

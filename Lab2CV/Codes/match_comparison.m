@@ -69,7 +69,7 @@ inlier2  = matched2(inlierIdx, :);
 inlier1   = matched1(inlierIdx, :);
 t=toc;
 
-% Visualizing matches...
+% Visualizing matches
 color_data=colormap(jet(size(inlier1.Location,1)));
 figure(2)
 subplot(121)
