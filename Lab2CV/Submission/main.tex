@@ -8,10 +8,14 @@
 \usepackage{booktabs}
 \usepackage{arydshln}
 \usepackage[a4paper, margin=1in]{geometry}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{placeins}
+\usepackage{float}
 
 \title{Laboratory 2}
-\author{Víctor Brull\and
-        Guillem Martínez}
+\author{Víctor Brull Rico\and
+        Guillem Martínez Sambola}
 \date{April 2026}
 
 \begin{document}
@@ -21,8 +25,8 @@
 \section{Introduction}
 
 Image feature matching is a key step in many computer vision tasks, such as
-3D reconstruction, SLAM, visual localization, and panorama stitching. The goal of
-this laboratory is to find reliable point correspondences between two or more images of the 
+3D reconstruction or visual localization. The goal of this laboratory is to 
+find reliable point correspondences between two or more images of the 
 same scene, which may differ in viewpoint, scale, rotation, or illumination.
 
 The most classical approach uses hand-crafted local feature descriptors. Among
@@ -56,18 +60,404 @@ LoFTR and LightGlue on challenging image pairs. Finally, Section~\ref{sec:Conclu
 draws conclusions and discusses the trade-offs between classical and data-driven pipelines.
 
 \section{Methods}
+\label{sec:Methods}
 
-Use report of lab 1 to describe the methods used in this lab. You can also add a 
-description of the LoFTR and LightGlue methods, as well as any other methods you 
-have used in your experiments.
+This section details the implementation of the feature matching and homography estimation pipeline, covering classical local descriptors, modern Transformer-based architectures, and the robust RANSAC framework used for geometric verification.
+
+\subsection{Descriptor Comparison Framework}
+The script match\_comparison.m evaluates eight distinct algorithms: FAST, SIFT, SURF, KAZE, BRISK, ORB, Harris, and MSER. The evaluation focuses on the trade-off between match density and computational latency. In practice, the procedure implemented is:
+\begin{itemize}
+    \item \textbf{Detection and Extraction:} Each algorithm processes a pair of images (original and rotated) to identify keypoints and compute their respective feature vectors.
+    \item \textbf{Matching:} Correspondences are established using a brute-force matcher. For binary descriptors (ORB, BRISK), Hamming distance is used, while $L_2$ norm is used for gradient-based descriptors (SIFT, SURF).
+    \item \textbf{Timing:} The execution time is measured specifically for the extraction and matching phases to determine the efficiency of each method.
+\end{itemize}
+
+\subsection{Data-driven Matching: LoFTR and LightGlue}
+Beyond classical methods, we explore "detector-free" and "deep matcher" paradigms using the \texttt{LoFTR} (Local Feature Transformer) and LightGlue architectures. 
+
+\textbf{LoFTR Implementation:}
+The core task of LoFTR is to establish dense matches without an explicit keypoint detection stage. The implementation follows these design choices:
+\begin{itemize}
+    \item \textbf{Coarse-to-Fine Matching:} A Convolutional Neural Network (CNN) extracts multi-scale feature maps. Transformers are applied at a coarse resolution to establish reliable region matches using self and cross-attention.
+    \item \textbf{Attention Mechanism:} The Transformer layers allow the model to learn global context, making it robust in textureless regions where SIFT typically fails.
+    \item \textbf{Sub-pixel Refinement:} Once coarse matches are found, they are refined to a finer resolution to achieve high localization accuracy.
+\end{itemize}
+
+\textbf{LightGlue Implementation:}
+In contrast to LoFTR, \texttt{LightGlue} is used as a "deep matcher" for existing keypoints (such as those from SuperPoint or SIFT). It uses an adaptive Transformer that can stop computation early if a match is easy to find, significantly reducing inference time while maintaining state-of-the-art accuracy.
+
+\subsection{Homography Estimation and RANSAC}
+The robust estimation of the projective transformation $\mathbf{H}$ is handled by \texttt{ransacfithomography.m}. Because putative matches often contain outliers, we use the RANSAC algorithm to find the geometrically dominant plane.
+
+\textbf{Key implementation details:}
+\begin{itemize}
+    \item \textbf{Normalisation:} Points are transformed via \texttt{normalise2dpts.m} so their centroid is at the origin and mean distance is $\sqrt{2}$. This ensures the Direct Linear Transform (DLT) is well-conditioned.
+    \item \textbf{Symmetric Transfer Error:} To count inliers, we measure the distance in both images: $d(\mathbf{x}', \mathbf{H}\mathbf{x}) + d(\mathbf{x}, \mathbf{H}^{-1}\mathbf{x}')$. A pair is an inlier if this error is below \texttt{params.t}.
+    \item \textbf{Pseudocode Overview:}
+\end{itemize}
+
+\begin{algorithm}
+\caption{RANSAC for Homography Estimation}
+\label{alg:ransac}
+\begin{algorithmic}[1] % The [1] adds line numbers
+\FOR{$i = 1$ \TO $maxIter$}
+    \STATE $S \leftarrow$ Select 4 random matching pairs
+    \STATE $H_{curr} \leftarrow$ Compute Homography using DLT on $S$
+    \STATE $inliers \leftarrow$ Calculate symmetric transfer error for all pairs
+    \IF{$count(inliers) > count(best\_inliers)$}
+        \STATE $best\_inliers \leftarrow inliers$
+    \ENDIF
+\ENDFOR
+\STATE $H_{final} \leftarrow$ Refine $H$ using Least Squares on $best\_inliers$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Performance Metrics: Frobenius Norm}
+To quantitatively verify accuracy against Ground Truth matrices, the code implements the Frobenius norm $E$. Both matrices are normalized such that the last element is 1:
+\begin{equation}
+E = \sqrt{\sum_{i=1}^3 \sum_{j=1}^3 (H_{i,j} - G_{i,j})^2}
+\end{equation}
+This metric allows us to evaluate the impact of image degradation (blur, lighting, and rotation) on the stability of the estimated homography.
 
 
 \section{Experiments}
+\label{sec:Experiments}
 
+\subsection{SIFT + RANSAC: Robust Homography Estimation}
+We evaluate SIFT+RANSAC using the \textit{Bikes} dataset to observe the effects of Gaussian blur on geometric mapping. 
 
+\textbf{Quantitative Evaluation and Error Analysis:}
+The accuracy was measured using the Frobenius norm. Table~\ref{tab:sift_results} summarizes these results.
+
+\begin{table}[H]
+\centering
+\caption{Quantitative Performance of SIFT-RANSAC on the Bikes Dataset.}
+\label{tab:sift_results}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Test Pair} & \textbf{Matches Found} & \textbf{Frobenius Error ($E$)} \\ \midrule
+Reference vs. Img 2    & 815                    & 1.1765                        \\
+Reference vs. Img 3    & 629                    & 1.4803                        \\
+Reference vs. Img 4    & 362                    & 2.1996                        \\
+Reference vs. Img 5    & 271                    & 0.3553                        \\
+Reference vs. Img 6    & 210                    & 1.9191                        \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Quantitative Performance of SIFT-RANSAC on the Boat Dataset.}
+\label{tab:sift_results}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Test Pair} & \textbf{Matches Found} & \textbf{Frobenius Error ($E$)} \\ \midrule
+Reference vs. Img 2    & 1998                    & 0.1964                        \\
+Reference vs. Img 3    & 1621                    & 0.6959                        \\
+Reference vs. Img 4    & 553                    & 2.1745                        \\
+Reference vs. Img 5    & 371                    & 2.1852                        \\
+Reference vs. Img 6    & 65                    & 5.0031                        \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Quantitative Performance of SIFT-RANSAC on the Graf Dataset.}
+\label{tab:sift_results}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Test Pair} & \textbf{Matches Found} & \textbf{Frobenius Error ($E$)} \\ \midrule
+Reference vs. Img 2    & 1065                    & 1.1486                        \\
+Reference vs. Img 3    & 241                    & 2.4849                        \\
+Reference vs. Img 4    & 23                    & 3.0980                        \\
+Reference vs. Img 5    & 11                    & 55.0615                        \\
+Reference vs. Img 6    & 7                    & 185.5130                        \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Quantitative Performance of SIFT-RANSAC on the Leuven Dataset.}
+\label{tab:sift_results}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Test Pair} & \textbf{Matches Found} & \textbf{Frobenius Error ($E$)} \\ \midrule
+Reference vs. Img 2    & 1213                    & 0.1160                        \\
+Reference vs. Img 3    & 906                    & 0.2134                        \\
+Reference vs. Img 4    & 669                    & 0.2162                        \\
+Reference vs. Img 5    & 519                    & 0.3297                        \\
+Reference vs. Img 6    & 361                    & 0.2290                        \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\FloatBarrier % Forces the table to stay here
+
+\textbf{Critical Analysis of Results:}
+The data illustrates a correlation between image degradation and feature density. As blur levels increase, the total match count drops by approximately 74\%. Interestingly, Pair 1-5 achieved the highest numerical precision ($E = 0.3553$), suggesting that the RANSAC consensus was formed on highly stable, large-scale features that remained invariant under significant smoothing. This indicates that while the quantity of descriptors decreases with blur, the spatial distribution of the surviving "strong" features can occasionally yield a more numerically stable homography than denser, noisier sets.
+
+\begin{figure}[p]
+    \centering
+    \begin{tabular}{cc}
+        \includegraphics[width=0.45\linewidth]{Figures/homography-img-1-2.jpg} & \includegraphics[width=0.45\linewidth]{Figures/homography-comparison-img-1-2.jpg} \\
+        \small (a) Pair 1-2 & \small (b) Comparison 1-2 \\
+        \includegraphics[width=0.45\linewidth]{Figures/homography-img-1-3.jpg} & \includegraphics[width=0.45\linewidth]{Figures/homography-comparison-img-1-3.jpg} \\
+        \small (c) Pair 1-3 & \small (d) Comparison 1-3 \\
+        \includegraphics[width=0.45\linewidth]{Figures/homography-img-1-4.jpg} & \includegraphics[width=0.45\linewidth]{Figures/homography-comparison-img-1-4.jpg} \\
+        \small (e) Pair 1-4 & \small (f) Comparison 1-4 \\
+    \end{tabular}
+    \caption{Estimated homographies and side-by-side results for pairs 1-2, 1-3, and 1-4.}
+\end{figure}
+
+\begin{figure}[p] 
+    \centering
+    \begin{tabular}{cc}
+        \includegraphics[width=0.45\linewidth]{Figures/homography-img-1-5.jpg} & \includegraphics[width=0.45\linewidth]{Figures/homography-comparison-img-1-5.jpg} \\
+        \small (a) Pair 1-5 & \small (b) Comparison 1-5 \\
+        \includegraphics[width=0.45\linewidth]{Figures/homography-img-1-6.jpg} & \includegraphics[width=0.45\linewidth]{Figures/homography-comparison-img-1-6.jpg} \\
+        \small (c) Pair 1-6 & \small (d) Comparison 1-6 \\
+    \end{tabular}
+    \caption{Estimated homographies and side-by-side results for pairs 1-5 and 1-6.}
+\end{figure}
+
+\FloatBarrier 
+
+\subsubsection{Real-World Applications: Image Mosaicing}
+Beyond the controlled evaluation on the Bikes dataset, the framework was applied to a practical mosaicing task using two provided RGB images. This task required the integration of feature matching and homography estimation into a global coordinate mapping framework, as specified in the \textit{Mosaic SIFT} module.
+
+\textbf{Implementation and Tasks:}
+As required by the manual, the \texttt{main.m} script was completed by implementing the SIFT matching and homography estimation logic. The workflow followed a robust pipeline:
+\begin{enumerate}
+    \item \textbf{Feature Correspondence:} SIFT descriptors were extracted and matched between the two captures to identify putative correspondences.
+    \item \textbf{Robust Estimation:} The \texttt{ransacfithomography} function was integrated to compute the transformation matrix while effectively rejecting outliers.
+    \item \textbf{Image Composition:} The estimated homography was used to warp the second image into the reference coordinate frame of the first, creating a unified mosaic.
+\end{enumerate}
+
+\textbf{Analysis of Results:}
+The resulting mosaic (Fig.~\ref{fig:mosaic-results}) demonstrates the successful integration of the functions developed during the session. Despite the perspective shifts between the two captures, the RANSAC-refined homography ensured that architectural lines and textures remained continuous across the overlap region. This process effectively expanded the horizontal field of view, validating the precision of the matching algorithm in a real-world scenario.
+
+\textbf{Implementation Details:}
+Following the requirements in the \texttt{Mosaic SIFT} module, the \texttt{main.m} script was completed to automate the following pipeline:
+\begin{enumerate}
+    \item \textbf{SIFT Feature Extraction:} Keypoints and descriptors were extracted for both the reference and target images.
+    \item \textbf{Putative Matching:} Matches were identified using the nearest neighbor distance ratio (NNDR) test.
+    \item \textbf{Homography Estimation:} The \texttt{ransacfithomography} function was used to filter outliers, such as those caused by repetitive patterns in the scene architecture, and compute a refined $\mathbf{H}$ matrix.
+    \item \textbf{Image Warping and Blending:} The target image was transformed into the reference coordinate frame, effectively doubling the horizontal field of view.
+\end{enumerate}
+\begin{figure}[ht!]
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}{@{}ccc@{}}
+\includegraphics[width=0.33\linewidth]{Figures/mosaic-picture1.jpg} &
+\includegraphics[width=0.33\linewidth]{Figures/mosaic-picture2.jpg} \\
+\small Original picture 1 & \small Original picture 2 \\
+\end{tabular}}
+\caption{Original pictures used for the SIFT mosaic.}
+\label{fig:mosaic-originals}
+\end{figure}
+
+\begin{figure}[ht!]
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}{@{}ccc@{}}
+\includegraphics[width=0.33\linewidth]{Figures/mosaic-homography.jpg} &
+\includegraphics[width=0.33\linewidth]{Figures/mosaic-composed.png} \\
+\small Estimated homography & \small Composed mosaic \\
+\end{tabular}}
+\caption{SIFT mosaic results.}
+\label{fig:mosaic-results}
+\end{figure}
+
+\subsection{Descriptor Comparison}
+
+The experiment uses the sunflower painting as the test image. Eight 
+descriptors are evaluated across a range of synthetic transformations: 
+scale $\in \{1.2, 1.6, 2.0\}$ and rotation $\in \{-60°,-40°,-20°,0°,20°,40°,60°\}$, 
+resulting in 21 transformed images per descriptor.
+
+Figure~\ref{fig:descriptor-results} shows the resulting heatmaps for number of
+matches and computation time. Regarding match count, SIFT and SURF consistently
+find the highest number of correspondences across both scale and rotation
+changes, confirming their design objective of invariance to these transformations.
+Moreover, KAZE also performs well, especially under rotation. In contrast, FAST, Harris,
+and MSER produce significantly fewer matches, as they are primarily detectors
+without strong descriptor invariance. On the other hand, ORB and BRISK
+match counts degrades faster with increasing scale, as binary descriptors
+are more sensitive to scale changes than gradient-based ones.
+
+Regarding computation time, the binary descriptors ORB and BRISK are the
+fastest. SIFT and SURF are considerably slower due to the cost of computing and comparing
+floating-point gradient histograms. KAZE is the slowest overall, since it
+builds a nonlinear scale space that is more expensive to construct. These
+results show a clear trade-off: gradient-based descriptors are more robust but
+slower, while binary descriptors are faster but less invariant.
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}{@{}cc@{}}
+\includegraphics[width=0.5\linewidth]{Figures/match-comparison-matches.png} &
+\includegraphics[width=0.5\linewidth]{Figures/match-comparison-time.png} \\
+\small Heatmap of matches & \small Heatmap of computation time \\
+\end{tabular}}
+\caption{Descriptor comparison results across scale and rotation variations for
+the eight evaluated methods. Left: number of matches. Right: computation time
+in seconds.}
+\label{fig:descriptor-results}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{Data-Driven Algorithms}
+
+We evaluate LoFTR~\cite{Sun2021} and LightGlue~\cite{Lindenberger2023} on
+three image pairs that represent distinct matching challenges: an indoor scene
+with viewpoint change, a motion blur pair, and a textureless pair. The input
+images are shown in Figures~\ref{fig:indoor-pairs},~\ref{fig:motion-pairs},
+and~\ref{fig:textureless-pairs}. The matching results are shown in
+Figures~\ref{fig:indoor-results},~\ref{fig:motion-results},
+and~\ref{fig:textureless-results}.
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}{@{}cc@{}}
+\includegraphics[width=0.5\linewidth]{Figures/indoor-pair1.jpg} &
+\includegraphics[width=0.5\linewidth]{Figures/indoor-pair2.jpg} \\
+\small Indoor image 1 & \small Indoor image 2 \\
+\end{tabular}}
+\caption{Pair of indoor images used to evaluate both methods.}
+\label{fig:indoor-pairs}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}{@{}cc@{}}
+\includegraphics[width=0.5\linewidth]{Figures/motion-pair1.png} &
+\includegraphics[width=0.5\linewidth]{Figures/motion-pair2.png} \\
+\small Motion image 1 & \small Motion image 2 \\
+\end{tabular}}
+\caption{Pair of images with motion blur.}
+\label{fig:motion-pairs}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}{@{}cc@{}}
+\includegraphics[width=0.5\linewidth]{Figures/textureless-pair1.jpg} &
+\includegraphics[width=0.5\linewidth]{Figures/textureless-pair2.jpg} \\
+\small Textureless image 1 & \small Textureless image 2 \\
+\end{tabular}}
+\caption{Pair of textureless images.}
+\label{fig:textureless-pairs}
+\end{figure}
+
+\FloatBarrier
+
+\textbf{Indoor scene.}
+Both methods produce a large number of matches. LoFTR finds 826 matches in
+approximately 0.30\,s. LightGlue produces a comparable number and distributes
+them well across the overlapping region. The feature distribution is correct in
+both cases, covering textured areas such as the monitor, the papers, and the
+desk edges. This confirms that a moderately textured indoor scene is a
+favorable condition for both approaches.
+
+\textbf{Motion blur.}
+This pair is more challenging due to the camera motion that softens edges and
+reduces gradient contrast. LoFTR finds 979 matches in around 0.29\,s.
+LightGlue also produces a dense set of correspondences. However, some matches
+are concentrated along the horizontal direction, which is consistent with the
+direction of motion blur. Overall, both methods handle this case reasonably
+well, though the match quality is lower compared to the indoor scene.
+
+\textbf{Textureless scene.}
+This is the most challenging pair. The images show a nearly uniform beige wall
+with almost no local gradient structure. LoFTR finds 1060 matches in 0.29\,s.
+This is because its Transformer-based design uses positional encoding and global
+context, allowing it to differentiate between positions even in homogeneous
+regions. In contrast, LightGlue produces only 88 matches in around 25.7\,s.
+Since LightGlue relies on sparse keypoints from a detector, it struggles to
+find repeatable interest points in flat regions, leading to very few and
+spatially sparse correspondences. This case clearly highlights the advantage of
+detector-free methods over detector-based ones in low-texture conditions.
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}{@{}cc@{}}
+\includegraphics[width=0.5\linewidth]{Figures/indoor-loftr.png} &
+\includegraphics[width=0.5\linewidth]{Figures/indoor-lightglue.png} \\
+\small Indoor LoFTR & \small Indoor LightGlue \\
+\end{tabular}}
+\caption{LoFTR and LightGlue results for the indoor pair. Both methods produce
+dense and well-distributed matches across the textured regions.}
+\label{fig:indoor-results}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}{@{}cc@{}}
+\includegraphics[width=0.5\linewidth]{Figures/motion-loftr.png} &
+\includegraphics[width=0.5\linewidth]{Figures/motion-lightglue.png} \\
+\small Motion LoFTR & \small Motion LightGlue \\
+\end{tabular}}
+\caption{LoFTR and LightGlue results for the motion blur pair. Both methods
+cope with the degradation, though some matches align with the blur direction.}
+\label{fig:motion-results}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}{@{}cc@{}}
+\includegraphics[width=0.5\linewidth]{Figures/textureless-loftr.png} &
+\includegraphics[width=0.5\linewidth]{Figures/textureless-lightglue.png} \\
+\small Textureless LoFTR (1060 matches) & \small Textureless LightGlue (88 matches) \\
+\end{tabular}}
+\caption{LoFTR and LightGlue results for the textureless pair. LoFTR finds many
+matches using global context, while LightGlue finds very few due to the lack of
+repeatable keypoints.}
+\label{fig:textureless-results}
+\end{figure}
+
+\FloatBarrier
 
 \section{Conclusion}
+\label{sec:Conclusion}
 
+This laboratory has studied feature matching from three perspectives: classical
+SIFT-based homography estimation, a comparison of eight local descriptors, and
+an evaluation of two modern deep learning methods.
+
+In the first part, SIFT combined with RANSAC successfully estimates homographies
+across all four datasets. The results show that match count decreases as image
+degradation increases, which directly raises the Frobenius error. The Bikes and
+Leuven datasets produce low errors even at high blur or illumination change,
+because the dominant gradient structure is preserved. The Graf dataset is the
+hardest, with errors exceeding 100 for the most extreme viewpoint changes,
+where very few matches survive. This confirms that SIFT is robust to moderate
+transformations but degrades under large viewpoint changes.
+
+In the second part, the descriptor comparison reveals a clear trade-off between
+robustness and speed. SIFT and SURF maintain a high number of matches across
+scale and rotation, while binary descriptors such as ORB and BRISK are
+significantly faster but less invariant. KAZE is the most computationally
+expensive method. No descriptor is fully invariant to all transformations,
+match counts drop consistently as scale or rotation increases.
+
+In the third part, LoFTR and LightGlue both perform well on textured scenes.
+However, the textureless pair reveals a fundamental difference. LoFTR finds over
+1000 matches by leveraging global context through its Transformer architecture,
+while LightGlue finds only 88 matches because it depends on a keypoint detector
+that fails in uniform regions. This shows that detector-free methods are better
+suited for challenging real-world scenes. The trade-off is computational cost:
+LightGlue is much faster on easy pairs due to its adaptive early-stopping
+mechanism, but this advantage disappears when the scene is difficult.
+
+Overall, classical methods remain useful and efficient for standard conditions,
+but data-driven approaches, especially detector-free ones like LoFTR, are
+necessary when the scene lacks texture or contains motion blur.
 
 
 
