@@ -12,10 +12,10 @@
 \usepackage{algorithmic}
 \usepackage{placeins}
 \usepackage{float}
+\usepackage{subcaption}
 
 \title{Laboratory 3}
-\author{Víctor Brull Rico\and
-        Guillem Martínez Sambola}
+\author{Víctor Brull Rico \and Guillem Martínez Sambola}
 \date{May 14, 2026}
 
 \begin{document}
@@ -24,305 +24,169 @@
 
 \section{Introduction}
 
+Exemplar-based methods are a family of image processing techniques that reconstruct missing or desired content by copying and adapting samples from a known reference region. Two important applications of this idea are texture synthesis, which generates new texture images from a given sample, and image inpainting, which fills in damaged or unwanted regions of a photograph. Despite their different goals, both tasks rely on the same core principle: find a patch in the known area that matches the local context of the region to be filled, and use it to synthesize new content.
 
+This report covers both applications. In Part~1, we implement and test the texture synthesis algorithm of Efros and Leung~\cite{efros1999}, a foundational method that grows new texture pixel by pixel using non-parametric sampling. In Part~2, we use the IPOL online demo to explore exemplar-based image inpainting and study how the method's parameters affect the quality of the result.
 
 \section{Methods}
 \label{sec:Methods}
 
 \subsection{Texture Synthesis by Non-parametric Sampling}
 
-The non-parametric sampling method for texture synthesis, introduced by Efros and Leung~\cite{efros1999}, models texture as a Markov Random Field (MRF). In this model, each pixel $p$ is assumed to be conditionally independent of all other pixels in the image, given its local neighborhood window $\omega(p)$ of size $w \times w$. This locality assumption allows the synthesis process to focus only on the spatial context around each pixel.
+The method proposed by Efros and Leung~\cite{efros1999} treats texture as a Markov Random Field (MRF). This means that the value of any pixel $p$ is assumed to depend only on its local neighborhood $\omega(p)$, a square window of width $w$ centered at $p$, and not on any other pixel in the image. This locality assumption is the key idea behind the algorithm, in order to synthesize a new pixel, we only need to look at the pixels already synthesized around it.
 
-The synthesis procedure begins with a small seed region, typically a $3 \times 3$ patch, randomly sampled from the input texture. The algorithm then grows the synthesized image outward, layer by layer, filling in one pixel at a time along the current boundary of known pixels. For each pixel to be synthesized, the algorithm:
-\begin{enumerate}
-    \item Extracts the known neighborhood $\omega(p)$ around the pixel.
-    \item Searches the sample image for all patches whose known neighborhoods are similar to $\omega(p)$, using a Gaussian-weighted sum of squared differences (SSD) as the similarity metric.
-    \item Selects all candidate patches whose SSD is within a tolerance $\epsilon$ of the best (minimum) SSD found.
-    \item Randomly chooses one of these candidates and copies its center pixel value to the synthesized image.
-\end{enumerate}
+The synthesis starts from a small seed, typically a $3 \times 3$ patch randomly taken from the input texture. From there, the algorithm grows the output image outward, one pixel at a time, following the boundary of the already-synthesized region. For each new pixel, the algorithm searches the input texture for all patches whose known neighborhood is similar to the current context. It then picks one of these candidate patches at random and copies its center pixel to the output.
 
-The Gaussian-weighted SSD distance is defined as:
+Similarity between two patches is measured using a Gaussian-weighted sum of squared differences (SSD):
 \begin{equation}
-    d(\omega_1, \omega_2) = \sum_{i} G_i \cdot ({\omega_1}_i - {\omega_2}_i)^2,
+    d(\omega_1, \omega_2) = \sum_{i} G_i \cdot (\omega_{1,i} - \omega_{2,i})^2,
     \label{eq:ssd}
 \end{equation}
-where $G$ is a 2D isotropic Gaussian kernel centered in the window, giving more importance to pixels near the center of the neighborhood. This weighting helps preserve local structure and reduces the influence of less relevant, distant pixels.
+where $G$ is a 2D isotropic Gaussian kernel. The Gaussian weighting means that pixels near the center of the window contribute more to the distance than those at the edges, which helps preserve local structure. Since some pixels in the neighborhood may not yet be synthesized, only the known pixels participate in the sum, and the result is normalized by the total weight of those pixels so that distances remain comparable.
 
-The tolerance parameter $\epsilon$ controls the diversity of the synthesis: a larger $\epsilon$ allows more candidate patches to be considered, resulting in more stochastic and varied outputs, while a smaller $\epsilon$ makes the synthesis more deterministic and faithful to the input texture.
-
-When computing the SSD, only the known (already synthesized) pixels in the window are used; unknown pixels are ignored. The SSD is normalized by the total weight of the known pixels, ensuring that distances are comparable even when the number of known neighbors varies.
-
-The patch window size $w$ is a key free parameter of the method, as it determines the size of the local context used for matching and synthesis. Larger windows capture more structure but require more computation and may reduce the diversity of the output.
-
-The method of Efros and Leung~\cite{efros1999} models texture as a Markov
-Random Field. A pixel $p$ is assumed to be conditionally independent of the
-rest of the image given its square neighborhood window $\omega(p)$ of width
-$w$. Texture is synthesized by growing outward from a small seed, one pixel
-at a time. For each candidate pixel, all neighborhoods in the sample image
-that are similar to $\omega(p)$ are found using a Gaussian-weighted sum of
-squared differences (SSD):
+The candidate patches are those whose distance to the query is within a factor $(1 + \epsilon)$ of the best match found:
 \begin{equation}
-    d(\omega_1, \omega_2) = \sum_{i} G_i \cdot ({\omega_1}_i - {\omega_2}_i)^2,
-    \label{eq:ssd}
+    d(\omega(p),\, \omega) \;<\; (1+\epsilon)\; d(\omega(p),\, \omega_{\text{best}}).
 \end{equation}
-where $G$ is a 2D isotropic Gaussian kernel that gives more weight to pixels
-near the center. Unknown (not yet synthesized) pixels are excluded from the
-sum, and the result is normalized by the total weight of the known pixels.
-All patches $\omega$ satisfying
-$d(\omega(p), \omega) < (1+\epsilon)\,d(\omega(p), \omega_{\text{best}})$
-are considered valid candidates, and a random one is selected.
+The tolerance $\epsilon$ controls how random the synthesis is. A small $\epsilon$ accepts only very close matches, producing output that closely follows the input structure. A large $\epsilon$ accepts many candidates, introducing more variation and stochasticity. The window size $w$ is the other main parameter: it defines how much context is used for matching. Larger windows capture longer-range structure, while smaller windows focus only on local color and texture.
 
 \subsection{Implementation Details}
 
-The implementation is modular, with two core functions supporting the synthesis process:
+The implementation consists of two core functions. \texttt{extract\_patches.m} slides a $w \times w$ window over the entire sample image and collects every patch whose support lies fully within the image boundaries. Each patch is stored in a 4D array of size $(w, w, C, N)$, where $C$ is the number of color channels and $N$ is the total number of extracted patches. The center coordinates of each patch are stored in a corresponding $N \times 2$ matrix, in the same order.
 
-\texttt{extract\_patches.m} extracts all possible $w \times w$ patches from the sample image. It slides a window over the image, collecting only those patches whose support lies entirely within the image boundaries (i.e., the window does not extend beyond the image edges). Each patch is stored as a column in a 4D array of size $(w, w, C, N)$, where $C$ is the number of color channels and $N$ is the total number of patches. The function also returns the coordinates of the patch centers, maintaining the same order as the patches in the array.
-
-\texttt{compute\_patch\_distances.m} computes the Gaussian-weighted SSD between a query patch and all patches in the list. It applies a binary mask to indicate which pixels in the query patch are known (already synthesized), and multiplies this mask with the Gaussian weights to form a combined weight map. The SSD is then computed only over the known pixels, and the result is normalized by the sum of the weights for those pixels. This ensures that the distance is meaningful even when some pixels are unknown. The function is fully vectorized: it computes the distances between the query patch and all patches in the list simultaneously, leveraging MATLAB's array operations for efficiency. This vectorization significantly speeds up the computation compared to a naive loop over patches.
-
-The following pseudocode summarizes the patch extraction and distance computation:
-\begin{verbatim}
-% Patch extraction
-for each valid center (r, c) in image:
-    patch = image(r-half_h:r+half_h, c-half_w:c+half_w, :)
-    store patch and (r, c)
-
-% Patch distance computation
-for each patch in patch_list:
-    diff = patch - query_patch
-    weighted_sq = (diff.^2) .* combined_weights
-    distance = sum(weighted_sq) / sum(combined_weights)
-\end{verbatim}
-
-By organizing the code in this way, the method efficiently supports the non-parametric sampling approach for texture synthesis.
-
-We implemented two core functions. \texttt{extract\_patches} slides a
-$w \times w$ window over the sample image and stores each valid patch
-(whose support lies entirely within the image) as a column of a matrix of
-size $(w^2 \cdot C) \times N$, where $C$ is the number of channels and $N$
-is the number of patches. \texttt{compute\_patch\_distances} computes the
-Gaussian-weighted SSD between a query patch and all columns of this matrix,
-masking out unknown pixels and normalizing by the total weight of known ones.
-Vectorizing the distance computation over all patches simultaneously gave a
-significant speedup compared to iterating patch by patch.
-
+\texttt{compute\_patch\_distances.m} computes the Gaussian-weighted SSD between a query patch and all patches in the list at once. A binary mask identifies which pixels in the query are already known; this mask is multiplied element-wise with the Gaussian kernel to form a combined weight map. The weighted squared differences are then summed over height, width, and channels, and normalized by the total weight of the known pixels. The entire computation is vectorized over all $N$ patches simultaneously, which gives a significant speedup compared to a loop-based approach.
 
 \section{Experiments}
 \label{sec:Experiments}
 
-\subsection{Testing Texture Synthesis}
+\subsection{Effect of Patch Size}
 
-Bricks example. Sample images:
+We first study how the window size $w$ affects the quality of the synthesized texture, keeping the tolerance fixed at $\epsilon = 0.1$. We test four values of $w$ on two textures: bricks (a structured, periodic texture) and cells (a semi-structured organic texture). For each result, we also show the copy map, which encodes the position in the sample image from which each pixel was copied. Regions of similar color in the copy map indicate that consecutive output pixels were taken from nearby locations in the sample.
+
+\subsubsection{Bricks}
+
+Figure~\ref{fig:bricks-sample} shows the bricks sample and its color map.
 
 \begin{figure}[H]
 \centering
-\resizebox{\linewidth}{!}{
 \begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/bricks_sample.png} &
-\includegraphics[width=0.5\linewidth]{Figures/bricks_color_map.png} \\
+\includegraphics[width=0.28\linewidth]{Figures/Part1/bricks_sample.png} &
+\includegraphics[width=0.28\linewidth]{Figures/Part1/bricks_color_map.png} \\
 \small Sample & \small Color Map \\
-\end{tabular}}
-\caption{Sample and color map for the bricks example.}
+\end{tabular}
+\caption{Bricks sample and its color map.}
 \label{fig:bricks-sample}
 \end{figure}
 
-Vary patch size, keep tolerance fixed. Texture and copy map for patch_size = 5, 11, 23, 31 and tolerance = 0.1:
-
 \begin{figure}[H]
 \centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/bricks_text_5_01.png} &
-\includegraphics[width=0.5\linewidth]{Figures/bricks_cm_5_01.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Small patch. Texture and copy map for patch_size = 5 and tolerance = 0.1.}
-\label{fig:bricks-results-5-01}
+\begin{tabular}{@{}cccc@{}}
+\includegraphics[width=0.22\linewidth]{Figures/Part1/bricks_text_5_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/bricks_text_11_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/bricks_text_23_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/bricks_text_31_01.png} \\
+\small $w=5$ & \small $w=11$ & \small $w=23$ & \small $w=31$ \\[6pt]
+\includegraphics[width=0.22\linewidth]{Figures/Part1/bricks_cm_5_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/bricks_cm_11_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/bricks_cm_23_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/bricks_cm_31_01.png} \\
+\small Copy Map & \small Copy Map & \small Copy Map & \small Copy Map \\
+\end{tabular}
+\caption{Bricks texture synthesis for increasing window size ($\epsilon = 0.1$). Each column shows the synthesized texture (top) and its copy map (bottom).}
+\label{fig:bricks-patch-size}
 \end{figure}
 
-\begin{figure}[H]
-\centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/bricks_text_11_01.png} &
-\includegraphics[width=0.5\linewidth]{Figures/bricks_cm_11_01.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Medium patch. Texture and copy map for patch_size = 11 and tolerance = 0.1.}
-\label{fig:bricks-results-11-01}
-\end{figure}
+With $w = 5$, the window is too small to capture the brick structure. The algorithm can match local color well, but has no information about the broader layout of bricks and mortar. As a result, the output looks noisy and the brick boundaries are misaligned or broken. The copy map is highly scattered, meaning pixels are copied from many different and distant locations in the sample.
+
+As $w$ increases to 11 and then to 23, the synthesized texture improves noticeably. With $w = 23$, the bricks and mortar lines are well preserved and the output is visually convincing. The copy map becomes more coherent, with large smooth regions indicating that consecutive pixels are copied from nearby areas of the sample. This is consistent with the algorithm finding consistent, long-range matches.
+
+At $w = 31$ the result is similar to $w = 23$, but computation time increases substantially. Since the improvement is marginal, $w = 23$ appears to be the best trade-off for this texture.
+
+\subsubsection{Cells}
+
+Figure~\ref{fig:cells-sample} shows the cells sample and its color map.
 
 \begin{figure}[H]
 \centering
-\resizebox{\linewidth}{!}{
 \begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/bricks_text_23_01.png} &
-\includegraphics[width=0.5\linewidth]{Figures/bricks_cm_23_01.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Large patch. Texture and copy map for patch_size = 23 and tolerance = 0.1.}
-\label{fig:bricks-results-23-01}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/bricks_text_31_01.png} &
-\includegraphics[width=0.5\linewidth]{Figures/bricks_cm_31_01.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Extreme large patch. Texture and copy map for patch_size = 31 and tolerance = 0.1.}
-\label{fig:bricks-results-31-01}
-\end{figure}
-
-Vary tolerance, keep patch size fixed. Texture and copy map for patch_size = 23 and tolerance = 0.01, 0.1, 1.0.
-Keep patch_size = 23 given the results above, as it provides the best balance.
-
-\begin{figure}[H]
-\centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/bricks_text_23_001.png} &
-\includegraphics[width=0.5\linewidth]{Figures/bricks_cm_23_001.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Low tolerance. Texture and copy map for patch_size = 23 and tolerance = 0.01.}
-\label{fig:bricks-results-23-001}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/bricks_text_23_01.png} &
-\includegraphics[width=0.5\linewidth]{Figures/bricks_cm_23_01.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Medium tolerance. Texture and copy map for patch_size = 23 and tolerance = 0.1.}
-\label{fig:bricks-results-23-01}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/bricks_text_23_1.png} &
-\includegraphics[width=0.5\linewidth]{Figures/bricks_cm_23_1.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{High tolerance. Texture and copy map for patch_size = 23 and tolerance = 1.0.}
-\label{fig:bricks-results-23-10}
-\end{figure}
-
-Cells example. Sample images:
-
-\begin{figure}[H]
-\centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/cells_sample.png} &
-\includegraphics[width=0.5\linewidth]{Figures/cells_color_map.png} \\
+\includegraphics[width=0.28\linewidth]{Figures/Part1/cells_sample.png} &
+\includegraphics[width=0.28\linewidth]{Figures/Part1/cells_color_map.png} \\
 \small Sample & \small Color Map \\
-\end{tabular}}
-\caption{Sample and color map for the cells example.}
+\end{tabular}
+\caption{Cells sample and its color map.}
 \label{fig:cells-sample}
 \end{figure}
 
-Vary patch size, keep tolerance fixed. Texture and copy map for patch_size = 5, 11, 23, 31 and tolerance = 0.1:
+\begin{figure}[H]
+\centering
+\begin{tabular}{@{}cccc@{}}
+\includegraphics[width=0.22\linewidth]{Figures/Part1/cells_text_5_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/cells_text_11_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/cells_text_23_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/cells_text_31_01.png} \\
+\small $w=5$ & \small $w=11$ & \small $w=23$ & \small $w=31$ \\[6pt]
+\includegraphics[width=0.22\linewidth]{Figures/Part1/cells_cm_5_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/cells_cm_11_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/cells_cm_23_01.png} &
+\includegraphics[width=0.22\linewidth]{Figures/Part1/cells_cm_31_01.png} \\
+\small Copy Map & \small Copy Map & \small Copy Map & \small Copy Map \\
+\end{tabular}
+\caption{Cells texture synthesis for increasing window size ($\epsilon = 0.1$). Each column shows the synthesized texture (top) and its copy map (bottom).}
+\label{fig:cells-patch-size}
+\end{figure}
+
+The cells texture tells a similar story. At $w = 5$, individual cell shapes are deformed and the boundaries between cells appear blurry and incoherent. The copy map is fragmented, showing that the algorithm jumps between many different parts of the sample without consistency.
+
+With $w = 11$ the cell shapes begin to emerge, though some distortion remains at boundaries. At $w = 23$, the synthesized cells are clearly defined and visually similar to the input, with correct colors and shapes. The copy map shows large, smooth regions, indicating that the algorithm is copying from consistent areas of the sample. At $w = 31$ the result remains good but offers no significant improvement over $w = 23$.
+
+These results confirm the observation of Efros and Leung~\cite{efros1999}, the window size should be chosen to cover at least one full texture element (texel). When the window is smaller than the dominant structure, the algorithm cannot match context correctly and the output degrades.
+
+\subsection{Effect of Tolerance}
+
+We now fix the window size at $w = 23$, which gave the best results in the previous experiment, and vary the tolerance $\epsilon \in \{0.01,\, 0.1,\, 1.0\}$.
 
 \begin{figure}[H]
 \centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/cells_text_5_01.png} &
-\includegraphics[width=0.5\linewidth]{Figures/cells_cm_5_01.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Small patch. Texture and copy map for patch_size = 5 and tolerance = 0.1.}
-\label{fig:cells-results-5-01}
+\begin{tabular}{@{}ccc@{}}
+\includegraphics[width=0.28\linewidth]{Figures/Part1/bricks_text_23_001.png} &
+\includegraphics[width=0.28\linewidth]{Figures/Part1/bricks_text_23_01.png} &
+\includegraphics[width=0.28\linewidth]{Figures/Part1/bricks_text_23_1.png} \\
+\small $\epsilon=0.01$ & \small $\epsilon=0.1$ & \small $\epsilon=1.0$ \\[6pt]
+\includegraphics[width=0.28\linewidth]{Figures/Part1/bricks_cm_23_001.png} &
+\includegraphics[width=0.28\linewidth]{Figures/Part1/bricks_cm_23_01.png} &
+\includegraphics[width=0.28\linewidth]{Figures/Part1/bricks_cm_23_1.png} \\
+\small Copy Map & \small Copy Map & \small Copy Map \\
+\end{tabular}
+\caption{Bricks synthesis for increasing tolerance ($w = 23$). Each column shows the synthesized texture (top) and its copy map (bottom).}
+\label{fig:bricks-tolerance}
 \end{figure}
 
 \begin{figure}[H]
 \centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/cells_text_11_01.png} &
-\includegraphics[width=0.5\linewidth]{Figures/cells_cm_11_01.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Medium patch. Texture and copy map for patch_size = 11 and tolerance = 0.1.}
-\label{fig:cells-results-11-01}
+\begin{tabular}{@{}ccc@{}}
+\includegraphics[width=0.28\linewidth]{Figures/Part1/cells_text_23_001.png} &
+\includegraphics[width=0.28\linewidth]{Figures/Part1/cells_text_23_01.png} &
+\includegraphics[width=0.28\linewidth]{Figures/Part1/cells_text_23_1.png} \\
+\small $\epsilon=0.01$ & \small $\epsilon=0.1$ & \small $\epsilon=1.0$ \\[6pt]
+\includegraphics[width=0.28\linewidth]{Figures/Part1/cells_cm_23_001.png} &
+\includegraphics[width=0.28\linewidth]{Figures/Part1/cells_cm_23_01.png} &
+\includegraphics[width=0.28\linewidth]{Figures/Part1/cells_cm_23_1.png} \\
+\small Copy Map & \small Copy Map & \small Copy Map \\
+\end{tabular}
+\caption{Cells synthesis for increasing tolerance ($w = 23$). Each column shows the synthesized texture (top) and its copy map (bottom).}
+\label{fig:cells-tolerance}
 \end{figure}
 
-\begin{figure}[H]
-\centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/cells_text_23_01.png} &
-\includegraphics[width=0.5\linewidth]{Figures/cells_cm_23_01.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Large patch. Texture and copy map for patch_size = 23 and tolerance = 0.1.}
-\label{fig:cells-results-23-01}
-\end{figure}
+At $\epsilon = 0.01$, the algorithm accepts only patches that are very close to the best match. This makes the synthesis more deterministic and the output closely follows the spatial layout of the sample. The copy map shows very large, smooth regions, meaning the algorithm tends to copy long consecutive runs from the same part of the sample. For bricks this produces a plausible texture, but the output can look overly regular and less natural because the algorithm has little freedom to vary.
 
-\begin{figure}[H]
-\centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/cells_text_31_01.png} &
-\includegraphics[width=0.5\linewidth]{Figures/cells_cm_31_01.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Extreme large patch. Texture and copy map for patch_size = 31 and tolerance = 0.1.}
-\label{fig:cells-results-31-01}
-\end{figure}
+At $\epsilon = 0.1$, more candidates are accepted, and the algorithm can choose from a wider set of matching patches. This introduces natural variation and the output looks more realistic for both textures. The copy map regions are somewhat smaller, reflecting the increased diversity of sources.
 
-Vary tolerance, keep patch size fixed. Texture and copy map for patch_size = 23 and tolerance = 0.01, 0.1, 1.0.
-Keep patch_size = 23 given the results above, as it provides the best balance.
+At $\epsilon = 1.0$, the tolerance is so large that almost any patch qualifies as a candidate, regardless of how well it actually matches the context. The algorithm effectively samples at random from the input, producing an output that loses the structural coherence of the texture entirely. The copy map becomes very fine-grained and scattered. This is a clear failure case because the output for bricks shows corrupted mortar lines and displaced bricks, while the cells texture becomes unrecognizable.
 
-\begin{figure}[H]
-\centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/cells_text_23_001.png} &
-\includegraphics[width=0.5\linewidth]{Figures/cells_cm_23_001.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Low tolerance. Texture and copy map for patch_size = 23 and tolerance = 0.01.}
-\label{fig:cells-results-23-001}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/cells_text_23_01.png} &
-\includegraphics[width=0.5\linewidth]{Figures/cells_cm_23_01.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{Medium tolerance. Texture and copy map for patch_size = 23 and tolerance = 0.1.}
-\label{fig:cells-results-23-01}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\resizebox{\linewidth}{!}{
-\begin{tabular}{@{}cc@{}}
-\includegraphics[width=0.5\linewidth]{Figures/cells_text_23_1.png} &
-\includegraphics[width=0.5\linewidth]{Figures/cells_cm_23_1.png} \\
-\small Texture & \small Copy Map \\
-\end{tabular}}
-\caption{High tolerance. Texture and copy map for patch_size = 23 and tolerance = 1.0.}
-\label{fig:cells-results-23-10}
-\end{figure}
-
-
+These experiments show that $\epsilon = 0.1$ provides the best balance between faithfulness to the input structure and natural variation in the output.
 
 \section{Conclusion}
 \label{sec:Conclusion}
-
 
 
 
