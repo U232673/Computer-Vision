@@ -56,10 +56,21 @@ The implementation consists of two core functions. \texttt{extract\_patches.m} s
 
 \texttt{compute\_patch\_distances.m} computes the Gaussian-weighted SSD between a query patch and all patches in the list at once. A binary mask identifies which pixels in the query are already known; this mask is multiplied element-wise with the Gaussian kernel to form a combined weight map. The weighted squared differences are then summed over height, width, and channels, and normalized by the total weight of the known pixels. The entire computation is vectorized over all $N$ patches simultaneously, which gives a significant speedup compared to a loop-based approach.
 
+\subsection{Variational Image In-painting}
+In the second part of the laboratory, we utilize a variational framework that generalizes exemplar-based matching. Unlike the pixel-by-pixel growth of Part 1, this framework optimizes the entire in-painting domain by minimizing an energy functional. We analyze three specific numerical methods:
+
+\begin{itemize}
+    \item \textbf{nlmeans (Non-Local Means):} This method calculates the value of a missing pixel as a weighted average of pixels from similar patches throughout the image. It uses the $L_2$-norm for distance, which tends to produce smooth results ideal for stochastic or blurry backgrounds.
+    \item \textbf{nlmedians (Non-Local Medians):} Based on the $L_1$-norm, this method selects the median value among candidate patches. It is more robust to outliers than the mean, allowing it to preserve sharper edges and avoid the "smudging" effect often seen in $L_2$ approaches.
+    \item \textbf{nlpoisson (Non-Local Poisson):} This approach combines patch matching with a diffusion process by solving a Poisson equation. Instead of copying raw color values, it propagates the gradients (changes in intensity) of the patches. This allows the algorithm to maintain structural continuity and adapt to lighting changes across the in-painting boundary.
+\end{itemize}
+
 \section{Experiments}
 \label{sec:Experiments}
 
-\subsection{Effect of Patch Size}
+\subsection{Texture Synthesis Results}
+
+\subsubsection{Effect of Patch Size}
 
 We first study how the window size $w$ affects the quality of the synthesized texture, keeping the tolerance fixed at $\epsilon = 0.1$. We test four values of $w$ on two textures: bricks (a structured, periodic texture) and cells (a semi-structured organic texture). For each result, we also show the copy map, which encodes the position in the sample image from which each pixel was copied. Regions of similar color in the copy map indicate that consecutive output pixels were taken from nearby locations in the sample.
 
@@ -141,7 +152,7 @@ With $w = 11$ the cell shapes begin to emerge, though some distortion remains at
 
 These results confirm the observation of Efros and Leung~\cite{efros1999}, the window size should be chosen to cover at least one full texture element (texel). When the window is smaller than the dominant structure, the algorithm cannot match context correctly and the output degrades.
 
-\subsection{Effect of Tolerance}
+\subsubsection{Effect of Tolerance}
 
 We now fix the window size at $w = 23$, which gave the best results in the previous experiment, and vary the tolerance $\epsilon \in \{0.01,\, 0.1,\, 1.0\}$.
 
@@ -185,9 +196,83 @@ At $\epsilon = 1.0$, the tolerance is so large that almost any patch qualifies a
 
 These experiments show that $\epsilon = 0.1$ provides the best balance between faithfulness to the input structure and natural variation in the output.
 
+\subsection{Image In-painting Results}
+
+\subsubsection{Custom In-painting Results}
+We used a custom image and a hand-made binary mask to test the restoration capabilities of the variational framework.
+
+\begin{figure}[H]
+\centering
+\begin{tabular}{ccc}
+  \includegraphics[width=0.3\linewidth]{Figures/Part2/own_original.png} & 
+  \includegraphics[width=0.3\linewidth]{Figures/Part2/own_mask.png} & 
+  \includegraphics[width=0.3\linewidth]{Figures/Part2/own_result.png} \\
+  (a) Original Image & (b) Binary Mask & (c) Final Result
+\end{tabular}
+\caption{Custom in-painting experiment results.}
+\label{fig:custom_inpainting}
+\end{figure}
+
+\subsubsection{Parameter Tuning Analysis (12 Configurations)}
+We systematically explored combinations of \texttt{patch\_size} and scales ($S$) across the three numerical methods.
+
+\begin{table}[H]
+\centering
+\caption{Method: \textbf{nlmeans} - Scales and Patch Size combinations.}
+\begin{tabular}{ccc}
+\toprule
+ & \textbf{Min Scale (S=1)} & \textbf{Max Scale (S=20)} \\ \midrule
+\textbf{Min Patch (5)} & \includegraphics[width=0.3\linewidth]{Figures/Part2/nlmeans/5,1.png} & \includegraphics[width=0.3\linewidth]{Figures/Part2/nlmeans/5,20.png} \\
+\textbf{Max Patch (15)} & \includegraphics[width=0.3\linewidth]{Figures/Part2/nlmeans/15,1.png} & \includegraphics[width=0.3\linewidth]{Figures/Part2/nlmeans/15,20.png} \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Method: \textbf{nlmedians} - Scales and Patch Size combinations.}
+\begin{tabular}{ccc}
+\toprule
+ & \textbf{Min Scale (S=1)} & \textbf{Max Scale (S=20)} \\ \midrule
+\textbf{Min Patch (5)} & \includegraphics[width=0.3\linewidth]{Figures/Part2/nlmedians/5,1.png} & \includegraphics[width=0.3\linewidth]{Figures/Part2/nlmedians/5,20.png} \\
+\textbf{Max Patch (15)} & \includegraphics[width=0.3\linewidth]{Figures/Part2/nlmedians/15,1.png} & \includegraphics[width=0.3\linewidth]{Figures/Part2/nlmedians/15,20.png} \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Method: \textbf{nlpoisson} - Scales and Patch Size combinations.}
+\begin{tabular}{ccc}
+\toprule
+ & \textbf{Min Scale (S=1)} & \textbf{Max Scale (S=20)} \\ \midrule
+\textbf{Min Patch (5)} & \includegraphics[width=0.3\linewidth]{Figures/Part2/nlpoisson/5,1.png} & \includegraphics[width=0.3\linewidth]{Figures/Part2/nlpoisson/5,20.png} \\
+\textbf{Max Patch (15)} & \includegraphics[width=0.3\linewidth]{Figures/Part2/nlpoisson/15,1.png}& \includegraphics[width=0.3\linewidth]{Figures/Part2/nlpoisson/15,20.png}\\ \bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Summary of Parameter Influence:}
+\begin{itemize}
+    \item \textbf{Patch Size:} Smaller patches are ideal for fine, random textures but fail on geometric lines. Larger patches preserve edges but may introduce blurring if no perfect match is found.
+    \item \textbf{Scales ($S$):} Controls multi-resolution processing. Low scales ($S=1$) are faster but often ignore the global context. High scales ($S \geq 3$) use a Gaussian pyramid to ensure large-scale features remain consistent.
+    \item \textbf{Numerical Methods:} 
+    \begin{itemize}
+        \item \textit{nlmeans}: Uses $L_2$ averaging for smooth blending; prone to smudging textures.
+        \item \textit{nlmedians}: Uses $L_1$ medians for robust, sharper transitions; ideal for high-contrast edges.
+        \item \textit{nlpoisson}: Uses gradient-based diffusion; provides superior structural flow and adapts best to lighting changes.
+    \end{itemize}
+\end{itemize}
+
 \section{Conclusion}
 \label{sec:Conclusion}
+This laboratory provided a comprehensive exploration of exemplar-based methods, demonstrating their versatility in both texture synthesis and image restoration. 
 
+In Part 1, our implementation of the Efros and Leung algorithm highlighted the critical role of the Markov Random Field model. We found that the \texttt{patch\_size} must be tailored to the size of the texture's "primitives" to avoid noisy outputs, while the tolerance parameter $\epsilon$ acts as a vital control for balancing structural faithfulness with natural stochastic variation. Our experiments confirmed that a tolerance of $\epsilon = 0.1$ generally provides the most realistic results, preventing both overly deterministic repetition and complete structural collapse.
+
+In Part 2, the evaluation of the IPOL variational framework revealed the distinct trade-offs between different numerical approaches. Our systematic study of 12 configurations showed that:
+\begin{itemize}
+    \item \textbf{Numerical Methods:} While \textit{nlmeans} excels at smooth blending in stochastic regions, \textit{nlpoisson} is superior for structural propagation as it effectively handles image gradients and lighting consistency.
+    \item \textbf{Global Consistency:} High multi-resolution scales ($S$) are essential for maintaining global coherence (e.g., aligning horizons), ensuring that local patch matching does not conflict with the "big picture."
+    \item \textbf{Structural Integrity:} Consistent with Part 1, larger patches are necessary to bridge significant gaps and preserve geometric continuity, such as straight lines and sharp edges.
+\end{itemize}
 
 
 \bibliographystyle{IEEEbib}
