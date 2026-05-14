@@ -9,9 +9,9 @@ close all
 clc
 
 % Input
-sample = imread('data/blobs.png');
+sample = imread('data/cells.png');
 texture_size = [30 30];
-patch_size = 13; % should be odd (3, 5, 7, etc.)
+patch_size = 23; % should be odd (3, 5, 7, etc.)
 tolerance = 0.1;
 
 [texture, copy_map] = synthesize_texture(sample, texture_size, patch_size, tolerance);
