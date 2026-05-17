@@ -61,4 +61,14 @@ Objects=Objects(1:n,:);
 
 % Resize coordinates back, to compensate the resizing of the picture
 % before making the IntegralImages
-Objects=Objects*IntegralImages.Ratio;
+Objects=Objects*IntegralImages.Ratio; 
+
+% Merge overlapping detections into single bounding boxes
+if isfield(Options,'MergeOverlap')
+    overlapThresh = Options.MergeOverlap;
+else
+    overlapThresh = 0.3;
+end
+if ~isempty(Objects)
+    Objects = MergeDetections(Objects, overlapThresh);
+end

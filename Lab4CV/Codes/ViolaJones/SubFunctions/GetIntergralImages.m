@@ -4,7 +4,7 @@
 %%%              Face Detection 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function IntegralImages = GetIntergralImages2(Picture,Options)
+function IntegralImages = GetIntergralImages(Picture,Options)
 % Make integral image from a Picture
 %
 %
@@ -33,8 +33,7 @@ end
 %%%%%%%%% Assignment. MISSING CODE HERE %%%%%%%%%%%%%
 % Make the integral image for fast region sum look up
 
-
-%MISSING CODE HERE %IntegralImages.ii= 
+IntegralImages.ii = cumsum(cumsum(Picture, 1), 2); 
 
 
 
@@ -48,8 +47,7 @@ IntegralImages.ii=padarray(IntegralImages.ii,[1 1], 0, 'pre');
 % Make integral image to calculate fast a local standard deviation of the
 % pixel data
 
-
-%MISSING CODE HERE %IntegralImages.ii2=
+IntegralImages.ii2 = cumsum(cumsum(Picture.^2, 1), 2);
 
 
 
