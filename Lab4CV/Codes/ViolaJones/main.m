@@ -7,8 +7,8 @@ addpath('SubFunctions');
 addpath('HaarCascades');
 
 ConvertHaarcasadeXMLOpenCV('HaarCascades/haarcascade_frontalface_alt.xml');
-%Options.MergeOverlap = 0.5;
+Options.MergeOverlap = 0.2;
 Options.Resize = false;
-Objects = ObjectDetection('../data/bruce3.jpg', 'HaarCascades/haarcascade_frontalface_alt.mat', Options);
-I = imread('../data/bruce3.jpg');
+Objects = ObjectDetection('../data/cameroon.png', 'HaarCascades/haarcascade_frontalface_alt.mat', Options);
+I = imread('../data/cameroon.png');
 ShowDetectionResult(I, Objects);

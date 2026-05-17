@@ -24,25 +24,16 @@
 
 \section{Introduction}
 
-% WHAT TO WRITE:
-%   - 1–2 paragraphs giving context: why face detection matters,
-%     and that two complementary approaches are studied here.
-%   - Mention that Viola–Jones is a classical, hand-crafted
-%     feature method, while MTCNN is a modern deep-learning one.
-%   - End with a one-sentence outline of the report structure.
-%
-% SUGGESTED TEXT (fill in / adapt):
- 
 Face detection is a fundamental problem in computer vision with
 applications ranging from user authentication to autonomous systems.
 In this laboratory we study two representative detection frameworks:
-the classical Viola--Jones method~\cite{viola2004robust}, which
+the classical Viola-Jones method~\cite{viola2004robust}, which
 achieves real-time performance through a cascade of Haar-like feature
 classifiers trained with AdaBoost, and the Multi-task Cascaded
 Convolutional Network (MTCNN)~\cite{zhang2016joint}, a deep-learning
 pipeline that jointly performs face detection and facial landmark
 alignment.
- 
+
 The report is organized as follows. Section~\ref{sec:Methods}
 describes the theoretical background of both methods.
 Section~\ref{sec:Experiments} presents the implementation details and
@@ -52,19 +43,13 @@ findings and conclusions.
 \section{Methods}
 \label{sec:Methods}
 
-\subsection{Viola--Jones Face Detection}
-% WHAT TO WRITE:
-%   Summarize the three pillars of the method (cite [1] for each).
- 
-The Viola--Jones detector~\cite{viola2004robust} is built on three
+\subsection{Viola-Jones Face Detection}
+
+The Viola-Jones detector~\cite{viola2004robust} is built on three
 key contributions.
- 
+
 \subsubsection{Integral Image}
-% WHAT TO WRITE:
-%   - Explain what the integral image is, reproduce Eqs.(1)-(2)
-%     from the paper (the recurrences for s and ii), and state
-%     why it allows any rectangular sum to be computed in O(1).
- 
+
 The \emph{integral image} $ii(x,y)$ at location $(x,y)$ is the sum
 of all pixel values above and to the left of $(x,y)$:
 \begin{equation}
@@ -75,26 +60,20 @@ It is computed in a single pass using the pair of recurrences
     s(x,y)  &= s(x,y-1) + i(x,y), \label{eq:row_sum}\\
     ii(x,y) &= ii(x-1,y) + s(x,y), \label{eq:int_img}
 \end{align}
-where $s(x,-1)=0$ and $ii(-1,y)=0$~\cite{viola2004robust}.
+where $s(x,-1)=0$ and $ii(-1,y)=0$.
 Once computed, any rectangular pixel sum requires only four array
 references, enabling Haar-like features to be evaluated at arbitrary
-scale and position in constant time.
- 
+scale and position in constant time O(1).
+
 \subsubsection{Haar-like Features and AdaBoost}
-% WHAT TO WRITE:
-%   - Briefly describe the three feature types (two-rect,
-%     three-rect, four-rect).
-%   - Explain that AdaBoost selects a small number of these
-%     features as weak classifiers and combines them into a
-%     strong classifier. Give the weak-classifier formula h(x,f,p,θ).
- 
+
 Three types of rectangle features are used: two-rectangle features
 (difference of horizontally or vertically adjacent regions),
 three-rectangle features (center region minus two outer regions), and
 four-rectangle features (difference between diagonal pairs). With a
 $24\times 24$ detection window the exhaustive set contains over
-$160{,}000$ features~\cite{viola2004robust}.
- 
+$160{,}000$ features.
+
 AdaBoost selects a small subset of these features as \emph{weak
 classifiers}. Each weak classifier $h(x,f,p,\theta)$ depends on a
 single feature $f$, a polarity $p$, and a threshold $\theta$:
@@ -106,61 +85,47 @@ single feature $f$, a polarity $p$, and a threshold $\theta$:
     \end{cases}
 \end{equation}
 The final strong classifier is a weighted majority vote of the $T$
-selected weak classifiers~\cite{viola2004robust}.
- 
+selected weak classifiers.
+
 \subsubsection{Attentional Cascade}
-% WHAT TO WRITE:
-%   - Explain the cascade structure: stages of increasing
-%     complexity, each trained to achieve near-100 % detection
-%     with a moderate false-positive rate.
-%   - State the overall false-positive and detection-rate products.
-%   - Mention that sub-windows rejected at any stage are
-%     immediately discarded, which gives speed.
- 
+
 The cascade arranges strong classifiers in a sequence. A sub-window
 must pass every stage to be labelled as a face candidate; otherwise
 it is immediately discarded. Early, lightweight classifiers reject
 the majority of background windows, so only a small fraction of
 sub-windows reaches the expensive later stages. The final
-Viola--Jones cascade uses 38 layers and 6060 features in total,
+Viola-Jones cascade uses 38 layers and 6060 features in total,
 yet evaluates on average only 8 features per sub-window on a
-natural image~\cite{viola2004robust}.
- 
+natural image.
+
 \subsection{MTCNN: Multi-task Cascaded Convolutional Networks}
-% WHAT TO WRITE:
-%   - Summarize the three-stage pipeline (P-Net, R-Net, O-Net)
-%     from the paper [2].
-%   - Briefly explain the three loss functions (classification,
-%     bounding-box regression, landmark localization) and how
-%     they are weighted in each network.
-%   - Mention online hard sample mining.
- 
+
 MTCNN~\cite{zhang2016joint} proposes a cascaded deep-learning
 framework for joint face detection and alignment. Given an input
 image, an image pyramid is built and fed through three successive
 convolutional networks:
- 
+
 \begin{itemize}
     \item \textbf{P-Net (Proposal Network):} A fully convolutional
     network that densely scans the image pyramid and produces initial
     face candidate windows together with bounding-box regression
     vectors. Non-maximum suppression (NMS) is applied to merge
     highly overlapping candidates.
- 
+
     \item \textbf{R-Net (Refine Network):} Receives all P-Net
     candidates and rejects a large fraction of false positives via
     a more complex CNN, followed by bounding-box calibration and NMS.
- 
+
     \item \textbf{O-Net (Output Network):} A still deeper CNN that
     refines the remaining candidates and additionally predicts the
     positions of five facial landmarks (left/right eye, nose,
     left/right mouth corner).
 \end{itemize}
- 
+
 Each network is trained with three tasks simultaneously. The
 face/non-face classification loss is a cross-entropy term, while
 bounding-box regression and facial landmark localization are both
-formulated as Euclidean regression losses~\cite{zhang2016joint}.
+formulated as Euclidean regression losses.
 An \emph{online hard sample mining} strategy selects the top $70\%$
 hardest samples in each mini-batch to strengthen training without
 manual curation.
@@ -168,19 +133,10 @@ manual curation.
 \section{Experiments}
 \label{sec:Experiments}
 
-\subsection{Task 1 -- Understanding the Viola--Jones Code}
-% WHAT TO WRITE:
-%   - One paragraph per main function explaining its role,
-%     inputs, and outputs. Functions to cover:
-%       ObjectDetection.m
-%       ConvertHaarcascadeXMLOpenCV.m
-%       HaarCascadeObjectDetection.m
-%       OneScaleObjectDetection.m
-%       GetIntegralImages.m
-%       ShowDetectionResult.m
- 
+\subsection{Understanding the Viola-Jones Code}
+
 \subsubsection{Overview of the Provided Functions}
- 
+
 \textbf{ObjectDetection.m} is the top-level function. It accepts a
 grayscale image (or filename), a Haar cascade \texttt{.mat} file, and
 an options structure. Internally it resizes the image (unless
@@ -188,116 +144,96 @@ an options structure. Internally it resizes the image (unless
 \texttt{HaarCascadeObjectDetection} at multiple scales controlled by
 \texttt{Options.ScaleUpdate}, and returns an $n\times 4$ array of
 detected object bounding boxes $[x, y, w, h]$.
- 
+
 \textbf{ConvertHaarcascadeXMLOpenCV.m} reads an OpenCV XML cascade
 file and converts it into a MATLAB \texttt{.mat} structure, making the
 trained OpenCV classifiers directly usable by the MATLAB pipeline.
- 
+
 \textbf{HaarCascadeObjectDetection.m} iterates over image scales,
 calls \texttt{GetIntegralImages} to build the integral image (and its
 squared version for variance normalization), and then calls
 \texttt{OneScaleObjectDetection} at each scale to apply the cascade.
- 
+
 \textbf{OneScaleObjectDetection.m} slides the detection window over
 the image at a fixed scale, evaluates each stage of the cascade, and
 collects accepted sub-windows as object hypotheses.
- 
+
 \textbf{GetIntegralImages.m} (detailed in Task~2) computes the
 integral image and the squared-pixel integral image from the input
 grayscale image.
- 
+
 \textbf{ShowDetectionResult.m} draws the detected bounding boxes on
 the original image for visualization.
- 
-\subsubsection{Explanation of Lines 35--38 in OneScaleObjectDetection.m}
-% WHAT TO WRITE:
-%   - Show (or describe) the four lines.
-%   - Explain their role in the context of variance normalization
-%     as described in Section 5.4 of [1].
-%   - The lines typically compute the mean and variance of the
-%     current sub-window using the two integral images, then
-%     derive a normalization factor used to scale feature responses.
- 
-Lines 35--38 of \texttt{OneScaleObjectDetection.m} implement the
-\emph{variance normalization} step described in Section 5.4 of
-\cite{viola2004robust}. The sub-window mean $\mu$ is obtained from
-the integral image via four lookups. The second integral image (of
-squared pixel values) yields $\sum x^2$; from these two quantities
-the variance is computed as
-$\sigma^2 = \tfrac{1}{N}\sum x^2 - \mu^2$,
-where $N$ is the number of pixels in the window.  The square root
-$\sigma$ is then used as a normalization factor: instead of
-normalizing the pixels, the feature thresholds are divided by
-$\sigma$ before comparison, keeping the computation inside the
-integral-image framework at constant cost per sub-window.
- 
-% ADD HERE: paste the actual four lines as a verbatim/lstlisting block
-% and annotate each line with comments.
+
+Furthermore, from the \texttt{OneScaleObjectDetection.m} file, lines 35 to 38 
+implement the evaluation of a single weak classifier (decision tree) and its
+accumulation into the strong classifier score for one cascade stage.
+The four lines read as follows:
+
 \begin{verbatim}
 % Loop through a classifier tree
 for i_tree=1:length(Trees)
     Tree = Trees(i_tree).value;
-    % Executed the classifier
-    TreeSum=TreeObjectDetection(zeros(size(x)),Tree,Scale,x,y,IntegralImages.ii,StandardDeviation,InverseArea);
-    StageSum = StageSum + TreeSum;
-end
+    % Executed the classifier   % line 35
+    TreeSum=TreeObjectDetection(zeros(size(x)),Tree,Scale,x,y,IntegralImages.ii,StandardDeviation,InverseArea);  % line 36
+    StageSum = StageSum + TreeSum;  % line 37
+end   % line 38
 \end{verbatim}
+
+\noindent\textbf{Line 36} calls \texttt{TreeObjectDetection}, which
+evaluates the current decision tree \texttt{Tree} at every candidate
+position $(x_i, y_i)$ in parallel. The function computes the
+Haar-like feature value for each position using \texttt{IntegralImages.ii}
+(enabling O(1) rectangular-sum lookups), normalises the response by
+dividing by \texttt{StandardDeviation} (the per-window standard
+deviation computed from \texttt{ii} and \texttt{ii2}, cf.\
+Section~5.4 of \cite{viola2004robust}), and returns a weighted score
+vector \texttt{TreeSum} of the same length as \texttt{x}. This
+corresponds directly to the weak classifier
+\begin{equation}
+    h_t(x) =
+    \begin{cases}
+        \alpha_t & \text{if } p_t \cdot f_t(x) < p_t \cdot \theta_t,\\
+        0        & \text{otherwise,}
+    \end{cases}
+\end{equation}
+where $f_t$ is the rectangle feature, $\theta_t$ the learned
+threshold, $p_t$ the polarity, and $\alpha_t =
+\log(1/\beta_t)$ the AdaBoost weight.
+
+\noindent\textbf{Line 37} accumulates the contribution of this tree
+into \texttt{StageSum}, the running strong-classifier score for the
+current stage. After all trees in the stage have been processed,
+\texttt{StageSum} holds the quantity
+\begin{equation}
+    C_{\text{stage}}(x_i) = \sum_{t=1}^{T} \alpha_t \, h_t(x_i),
+\end{equation}
+which is then compared against \texttt{stage.stage\_threshold} in
+the lines that follow: any candidate whose score falls below the
+threshold is rejected immediately, implementing the cascade's
+early-rejection mechanism.
+
+\noindent\textbf{Line 38} closes the inner \texttt{for} loop that
+iterates over the trees of a single cascade stage.
  
-\subsection{Task 2 -- Implementing the Integral Image}
-% WHAT TO WRITE:
-%   - Reproduce (or paraphrase) the missing code you implemented
-%     in GetIntegralImages.m.
-%   - Relate each line to Eqs. (1)-(2) of [1].
-%   - Show a small sanity-check result (e.g. sum of a known region).
+\subsection{Implementing the Integral Image}
  
 The missing code in \texttt{GetIntegralImages.m} implements
 Equations~\eqref{eq:row_sum}--\eqref{eq:int_img}. Concretely:
- 
-% PASTE YOUR MATLAB CODE BELOW (replace the placeholder):
+
 \begin{verbatim}
-% --- MISSING CODE (GetIntegralImages.m) ---
-[rows, cols] = size(Picture);
-IntegralImage        = zeros(rows+1, cols+1);
-IntegralImageSquared = zeros(rows+1, cols+1);
- 
-for y = 1:rows
-    s        = 0;
-    s_sq     = 0;
-    for x = 1:cols
-        s    = s    + Picture(y, x);
-        s_sq = s_sq + Picture(y, x)^2;
-        IntegralImage(y+1, x+1)        = IntegralImage(y, x+1)   + s;
-        IntegralImageSquared(y+1, x+1) = IntegralImageSquared(y, x+1) + s_sq;
-    end
-end
+% Make the integral image for fast region sum look up
+IntegralImages.ii = cumsum(cumsum(Picture, 1), 2); 
+IntegralImages.ii=padarray(IntegralImages.ii,[1 1], 0, 'pre');
+
+% Make integral image to calculate fast a local standard deviation of the
+% pixel data
+IntegralImages.ii2 = cumsum(cumsum(Picture.^2, 1), 2);
+IntegralImages.ii2=padarray(IntegralImages.ii2,[1 1], 0, 'pre');
 \end{verbatim}
- 
-The outer loop traverses rows and the inner loop accumulates the
-cumulative row sum $s(x,y)$ (cf.\ Eq.~\eqref{eq:row_sum}). Adding
-the value from the row above yields $ii(x,y)$
-(cf.\ Eq.~\eqref{eq:int_img}). An identical construction on squared
-pixel values produces the second integral image needed for variance
-normalization.
- 
-% ADD A FIGURE: show the integral image of one of your test images.
-% \begin{figure}[H]
-%   \centering
-%   \includegraphics[width=0.5\linewidth]{figures/integral_image.png}
-%   \caption{Integral image of \texttt{bruce3.jpg}.}
-%   \label{fig:integral_image}
-% \end{figure}
- 
-\subsection{Task 2 -- Merging Overlapping Detections}
-% WHAT TO WRITE:
-%   - Explain the problem: the sliding-window approach at multiple
-%     scales triggers multiple overlapping bounding boxes for the
-%     same face.
-%   - Describe your merging strategy (e.g. grouping overlapping
-%     boxes and averaging their corners, as suggested in [1]
-%     Section 5.6, or a non-maximum suppression variant).
-%   - Paste your auxiliary function (or its key lines).
-%   - Show a before/after figure.
- 
+
+\subsection{Merging Overlapping Detections}
+
 Because the detector is evaluated at multiple scales and positions,
 each face typically produces several overlapping hypotheses.
 Following the strategy proposed in Section~5.6 of
@@ -356,24 +292,23 @@ areaB = bw * bh;
 o = inter / (areaA + areaB - inter);
 end
 \end{verbatim}
- 
-% ADD BEFORE/AFTER FIGURES:
-% \begin{figure}[H]
-%   \centering
-%   \begin{subfigure}[b]{0.45\linewidth}
-%     \includegraphics[width=\linewidth]{figures/before_merge.png}
-%     \caption{Before merging.}
-%   \end{subfigure}
-%   \hfill
-%   \begin{subfigure}[b]{0.45\linewidth}
-%     \includegraphics[width=\linewidth]{figures/after_merge.png}
-%     \caption{After merging.}
-%   \end{subfigure}
-%   \caption{Effect of the merging auxiliary function on a test image.}
-%   \label{fig:merge}
-% \end{figure}
- 
-\subsection{Task 2 -- Viola--Jones Face Detection Results}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{figures/bruce3_no_merge.jpg}
+\caption{Before merging.}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{figures/bruce3_merge.jpg}
+\caption{After merging.}
+\end{subfigure}
+\caption{Effect of the merging auxiliary function on a test image.}
+\label{fig:merge_test}
+\end{figure}
+
+\subsection{Viola-Jones Face Detection Results}
 % WHAT TO WRITE:
 %   - Choose at least 3–4 test images (vary: group photo,
 %     profile face, occluded face, different lighting).
@@ -382,11 +317,11 @@ end
 %     detected (true positives, false positives, missed).
 %   - Discuss failure cases explicitly (e.g. profile faces,
 %     strong backlighting, occlusion) referencing [1] §5.7.2.
- 
-We tested the Viola--Jones detector using the
+
+We tested the Viola-Jones detector using the
 \texttt{haarcascade\_frontalface\_alt.xml} cascade on a set of images
 with varying conditions.
- 
+
 % EXAMPLE — add one paragraph + figure per image:
 %
 % \textbf{Image 1 (bruce3.jpg).} The image contains X frontal
@@ -400,11 +335,19 @@ with varying conditions.
 %   \caption{Detection result on \texttt{bruce3.jpg}.}
 %   \label{fig:bruce3}
 % \end{figure}
- 
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{figures/barcelona.png}
+\caption{Before merging.}
+\end{subfigure}
+\caption{Effect of the merging auxiliary function on a test image.}
+\label{fig:merge_test}
+\end{figure}
+
 \subsubsection{Failure Cases}
-% Discuss at least one clear failure: tilted faces, occlusion,
-% dark faces on light background.  Reference [1] Section 5.7.2.
- 
+
 As noted in \cite{viola2004robust}, the cascade was trained on
 frontal, upright faces. Consistent with this, our tests revealed
 failures in three scenarios: (i) faces rotated more than
@@ -412,10 +355,23 @@ approximately $\pm 15^\circ$ in-plane, (ii) strongly backlit faces
 where the face region is significantly darker than the background,
 and (iii) faces with occluded eyes, since the eye-darkness feature
 is one of the first selected by AdaBoost.
- 
-% ADD FIGURE showing a failure case.
- 
-\subsection{Task 3 -- MTCNN Results}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{figures/schindler.png}
+\caption{Before merging.}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{figures/cameroon.png}
+\caption{After merging.}
+\end{subfigure}
+\caption{Effect of the merging auxiliary function on a test image.}
+\label{fig:merge_test}
+\end{figure}
+
+\subsection{MTCNN Results}
 % WHAT TO WRITE:
 %   - Briefly describe the main.m demo: what it does, what
 %     parameters can be set (minSize, threshold per stage, etc.).
@@ -424,34 +380,25 @@ is one of the first selected by AdaBoost.
 %   - Report detected faces and facial landmarks (5 points).
 %   - Compare qualitatively: where does MTCNN succeed where
 %     VJ fails, and vice versa?
- 
+
 We ran the MTCNN demo (\texttt{main.m}) on the same set of images
 used in Section~\ref{sec:Experiments}.
 MTCNN operates on an image pyramid and refines candidates through
 P-Net, R-Net, and O-Net sequentially~\cite{zhang2016joint}.
 In addition to bounding boxes it outputs five facial landmarks per
 detected face.
- 
-% EXAMPLE per image:
-% \begin{figure}[H]
-%   \centering
-%   \includegraphics[width=0.6\linewidth]{figures/mtcnn_bruce3.png}
-%   \caption{MTCNN result on \texttt{bruce3.jpg}: bounding boxes
-%            and five landmarks per face.}
-%   \label{fig:mtcnn_bruce3}
-% \end{figure}
- 
-\subsubsection{Comparison: Viola--Jones vs.\ MTCNN}
+
+\subsubsection{Comparison: Viola-Jones vs.\ MTCNN}
 % WHAT TO WRITE:
 %   - Make a small table: image / VJ detections / MTCNN detections
 %     / ground-truth faces.
 %   - Comment on speed (VJ is real-time on CPU; MTCNN is faster
 %     on GPU [2] Table II).
 %   - Comment on robustness (MTCNN handles pose variation better).
- 
+
 Table~\ref{tab:comparison} summarizes the detection counts for both
 methods across the tested images.
- 
+
 \begin{table}[H]
 \centering
 \caption{Detection counts: Viola-Jones vs.\ MTCNN.
@@ -470,7 +417,7 @@ image3.jpg   & -- & -- & -- & -- & -- & -- & -- \\
 \bottomrule
 \end{tabular}
 \end{table}
- 
+
 Overall, MTCNN proved more robust to moderate pose variation and
 partial occlusion, consistent with the benchmark results
 reported in \cite{zhang2016joint}, while the Viola--Jones detector
@@ -480,31 +427,6 @@ computational requirements without a GPU.
 \section{Conclusion}
 \label{sec:Conclusion}
 
-% WHAT TO WRITE:
-%   - 1 paragraph summarizing what was implemented and learned.
-%   - 1 paragraph comparing the two approaches (speed, accuracy,
-%     robustness, ease of use).
-%   - Optional: one sentence on possible extensions (video, other
-%     cascades, fine-tuning MTCNN).
- 
-In this laboratory we implemented and evaluated two face detection
-frameworks. For Viola--Jones~\cite{viola2004robust}, we completed the
-integral image computation following Equations~\eqref{eq:row_sum}
-and~\eqref{eq:int_img}, explained the variance normalization step in
-\texttt{OneScaleObjectDetection.m}, and implemented an auxiliary
-function to merge overlapping detections. For
-MTCNN~\cite{zhang2016joint}, we ran the provided demo and analysed
-the three-stage cascade that jointly detects faces and localizes five
-facial landmarks.
- 
-The classical Viola--Jones method provides fast, real-time detection
-on standard CPUs for frontal faces, but degrades significantly with
-pose variation and occlusion. MTCNN leverages deep convolutional
-features learned from large datasets and jointly optimizes detection
-and alignment, yielding markedly better robustness at the cost of
-requiring a GPU for real-time performance. Both methods share the
-cascade design philosophy: coarse-to-fine processing that discards
-easy negatives early to focus computation on promising regions.
 
 \bibliographystyle{IEEEbib}
 \bibliography{references}

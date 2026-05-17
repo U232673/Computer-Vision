@@ -34,13 +34,6 @@ end
 % Make the integral image for fast region sum look up
 
 IntegralImages.ii = cumsum(cumsum(Picture, 1), 2); 
-
-
-
-
-
-
-
 IntegralImages.ii=padarray(IntegralImages.ii,[1 1], 0, 'pre');
 
 %%%%%%%%% Assignment. MISSING CODE HERE %%%%%%%%%%%%%
@@ -48,13 +41,6 @@ IntegralImages.ii=padarray(IntegralImages.ii,[1 1], 0, 'pre');
 % pixel data
 
 IntegralImages.ii2 = cumsum(cumsum(Picture.^2, 1), 2);
-
-
-
-
-
-
-
 IntegralImages.ii2=padarray(IntegralImages.ii2,[1 1], 0, 'pre');
 
 % Store other data
