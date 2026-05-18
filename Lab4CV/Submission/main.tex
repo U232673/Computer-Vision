@@ -311,7 +311,16 @@ end
 \subsection{Viola-Jones Face Detection Results}
 
 We tested the Viola-Jones detector using the
-\texttt{haarcascade\_frontalface\_alt.xml} cascade on images.
+\texttt{haarcascade\_frontalface\_alt.xml} cascade on images with
+varying conditions. As shown in Figure~\ref{fig:vj_results}, the
+detector performs well on images containing frontal, well-lit faces.
+In the Barcelona image, the majority of players facing the camera are
+correctly detected despite the large number of faces and small scale
+of some of them. In the Faces image, a grid of
+photographs with frontal alignment and neutral backgrounds, the
+detector successfully identifies every face, which is the
+expected best-case scenario for this cascade since the training
+conditions closely match the input.
 
 \begin{figure}[H]
 \centering
@@ -324,8 +333,10 @@ We tested the Viola-Jones detector using the
 \includegraphics[width=\linewidth]{Figures/faces.jpg}
 \caption{Faces}
 \end{subfigure}
-\caption{}
-\label{fig:merge_test}
+\caption{Viola-Jones detection results on standard test images.
+Most frontal faces are correctly detected after merging overlapping
+bounding boxes.}
+\label{fig:vj_results}
 \end{figure}
 
 \subsubsection{Failure Cases}
@@ -338,6 +349,28 @@ where the face region is significantly darker than the background,
 and (iii) faces with occluded eyes, since the eye-darkness feature
 is one of the first selected by AdaBoost.
 
+These limitations are clearly illustrated in Figure~\ref{fig:vj_failures}.
+In the Schindler image, a black-and-white scene with a crowd of people
+in varied poses, the detector misses several faces including the
+central figure of Schindler himself, whose face is turned slightly
+away from the camera. This confirms the sensitivity of the method to
+out-of-plane rotation: as soon as a face deviates
+significantly from a frontal orientation, the Haar-like
+features no longer match the patterns learned during training and
+the cascade rejects the sub-window at an early stage.
+
+The Cameroon image reveals a different and more concerning failure
+mode. The image shows a football team composed of
+black players, and the detector fails to localize the majority
+of faces. A likely explanation is a \emph{dataset bias}. The
+training set used by Viola and Jones consisted
+of images crawled from the web in the early 2000s, which may not have
+been representative of the full range of skin tones. The first Haar
+feature selected by AdaBoost exploits the observation that the eye
+region is darker than the cheeks and nose bridge. So, for darker skin
+tones this luminance contrast is reduced, weakening the discriminative
+power of the earliest and most critical cascade stage.
+
 \begin{figure}[H]
 \centering
 \begin{subfigure}[b]{0.45\linewidth}
@@ -349,8 +382,11 @@ is one of the first selected by AdaBoost.
 \includegraphics[width=\linewidth]{Figures/cameroon.jpg}
 \caption{Cameroon}
 \end{subfigure}
-\caption{Failure cases for the Viola-Jones detector.}
-\label{fig:merge_test}
+\caption{Failure cases for the Viola-Jones detector. Left: non-frontal
+faces are missed due to pose sensitivity. Right: dark-skinned faces
+are largely undetected, suggesting a bias in the original training
+dataset.}
+\label{fig:vj_failures}
 \end{figure}
 
 \subsection{MTCNN Results}
