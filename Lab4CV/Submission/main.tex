@@ -296,12 +296,12 @@ end
 \begin{figure}[H]
 \centering
 \begin{subfigure}[b]{0.45\linewidth}
-\includegraphics[width=\linewidth]{figures/bruce3_no_merge.jpg}
+\includegraphics[width=\linewidth]{Figures/bruce3_no_merge.jpg}
 \caption{Before merging.}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.45\linewidth}
-\includegraphics[width=\linewidth]{figures/bruce3_merge.jpg}
+\includegraphics[width=\linewidth]{Figures/bruce3_merge.jpg}
 \caption{After merging.}
 \end{subfigure}
 \caption{Effect of the merging auxiliary function on a test image.}
@@ -309,40 +309,18 @@ end
 \end{figure}
 
 \subsection{Viola-Jones Face Detection Results}
-% WHAT TO WRITE:
-%   - Choose at least 3–4 test images (vary: group photo,
-%     profile face, occluded face, different lighting).
-%   - For each image: show the image with bounding boxes,
-%     state how many faces are present and how many were
-%     detected (true positives, false positives, missed).
-%   - Discuss failure cases explicitly (e.g. profile faces,
-%     strong backlighting, occlusion) referencing [1] §5.7.2.
 
 We tested the Viola-Jones detector using the
 \texttt{haarcascade\_frontalface\_alt.xml} cascade on a set of images
 with varying conditions.
 
-% EXAMPLE — add one paragraph + figure per image:
-%
-% \textbf{Image 1 (bruce3.jpg).} The image contains X frontal
-% faces. The detector found Y bounding boxes before merging and
-% Z after merging, correctly identifying W faces with V false
-% positives.
-%
-% \begin{figure}[H]
-%   \centering
-%   \includegraphics[width=0.6\linewidth]{figures/bruce3_result.png}
-%   \caption{Detection result on \texttt{bruce3.jpg}.}
-%   \label{fig:bruce3}
-% \end{figure}
-
 \begin{figure}[H]
 \centering
 \begin{subfigure}[b]{0.45\linewidth}
-\includegraphics[width=\linewidth]{figures/barcelona.png}
-\caption{Before merging.}
+\includegraphics[width=\linewidth]{Figures/barcelona.jpg}
+\caption{}
 \end{subfigure}
-\caption{Effect of the merging auxiliary function on a test image.}
+\caption{}
 \label{fig:merge_test}
 \end{figure}
 
@@ -359,12 +337,12 @@ is one of the first selected by AdaBoost.
 \begin{figure}[H]
 \centering
 \begin{subfigure}[b]{0.45\linewidth}
-\includegraphics[width=\linewidth]{figures/schindler.png}
+\includegraphics[width=\linewidth]{Figures/schindler.jpg}
 \caption{Before merging.}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.45\linewidth}
-\includegraphics[width=\linewidth]{figures/cameroon.png}
+\includegraphics[width=\linewidth]{Figures/cameroon.jpg}
 \caption{After merging.}
 \end{subfigure}
 \caption{Effect of the merging auxiliary function on a test image.}
@@ -381,12 +359,6 @@ is one of the first selected by AdaBoost.
 %   - Compare qualitatively: where does MTCNN succeed where
 %     VJ fails, and vice versa?
 
-We ran the MTCNN demo (\texttt{main.m}) on the same set of images
-used in Section~\ref{sec:Experiments}.
-MTCNN operates on an image pyramid and refines candidates through
-P-Net, R-Net, and O-Net sequentially~\cite{zhang2016joint}.
-In addition to bounding boxes it outputs five facial landmarks per
-detected face.
 
 \subsubsection{Comparison: Viola-Jones vs.\ MTCNN}
 % WHAT TO WRITE:
@@ -406,7 +378,7 @@ TP = true positives, FP = false positives, FN = false negatives.}
 \label{tab:comparison}
 \begin{tabular}{lccccccc}
 \toprule
-& & \multicolumn{3}{c}{Viola--Jones} & \multicolumn{3}{c}{MTCNN} \\
+& & \multicolumn{3}{c}{Viola-Jones} & \multicolumn{3}{c}{MTCNN} \\
 \cmidrule(lr){3-5}\cmidrule(lr){6-8}
 Image & GT faces & TP & FP & FN & TP & FP & FN \\
 \midrule
@@ -418,11 +390,6 @@ image3.jpg   & -- & -- & -- & -- & -- & -- & -- \\
 \end{tabular}
 \end{table}
 
-Overall, MTCNN proved more robust to moderate pose variation and
-partial occlusion, consistent with the benchmark results
-reported in \cite{zhang2016joint}, while the Viola--Jones detector
-remained competitive on frontal, well-lit faces and offered lower
-computational requirements without a GPU.
 
 \section{Conclusion}
 \label{sec:Conclusion}
