@@ -311,14 +311,18 @@ end
 \subsection{Viola-Jones Face Detection Results}
 
 We tested the Viola-Jones detector using the
-\texttt{haarcascade\_frontalface\_alt.xml} cascade on a set of images
-with varying conditions.
+\texttt{haarcascade\_frontalface\_alt.xml} cascade on images.
 
 \begin{figure}[H]
 \centering
 \begin{subfigure}[b]{0.45\linewidth}
 \includegraphics[width=\linewidth]{Figures/barcelona.jpg}
-\caption{}
+\caption{Barcelona}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/faces.jpg}
+\caption{Faces}
 \end{subfigure}
 \caption{}
 \label{fig:merge_test}
@@ -338,14 +342,14 @@ is one of the first selected by AdaBoost.
 \centering
 \begin{subfigure}[b]{0.45\linewidth}
 \includegraphics[width=\linewidth]{Figures/schindler.jpg}
-\caption{Before merging.}
+\caption{Schindler}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.45\linewidth}
 \includegraphics[width=\linewidth]{Figures/cameroon.jpg}
-\caption{After merging.}
+\caption{Cameroon}
 \end{subfigure}
-\caption{Effect of the merging auxiliary function on a test image.}
+\caption{Failure cases for the Viola-Jones detector.}
 \label{fig:merge_test}
 \end{figure}
 
