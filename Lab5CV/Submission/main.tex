@@ -29,7 +29,47 @@
 \section{Methods}
 \label{sec:Methods}
 
+\subsection{2D Tracking Data and Measurement Matrix}
+% WHAT TO WRITE:
+%   - Briefly explain what visualize_2Dtracking.m does.
+%   - Explain how the measurement matrix W is built
+%   - Include a figure: representative frame from the Dinosaur video with the
+%     2D tracked points overlaid.
 
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/dinosaur_2Dtracking.jpg}
+\end{subfigure}
+\hfill
+\caption{2D tracked points on the Dinosaur frame}
+\label{fig:dinosaur_2Dtracking}
+\end{figure}
+
+\subsection{Rigid Structure from Motion by Factorization}
+% WHAT TO WRITE:
+%   - Explain the orthographic projection model:
+%       W = R * S   (measurement = motion x shape)
+%     where R is 2F x 3 (stacked camera rows) and S is 3 x P (3D shape).
+%   - Describe how you implemented rigidfactorization_ortho.m:
+%   - Define the 3D reconstruction error used to evaluate results.
+
+% 3D error: 0.002865 %
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.35\linewidth}
+\includegraphics[width=\linewidth]{Figures/ogre3D_1.jpg}
+\caption{Output 3D reconstruction}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/ogre3Dground.jpg}
+\caption{Ground Truth}
+\end{subfigure}
+\caption{3D reconstruction of the Ogre sequence using rigid factorization}
+\label{fig:ogre_3Dreconstruction}
+\end{figure}
 
 \section{Experiments}
 \label{sec:Experiments}

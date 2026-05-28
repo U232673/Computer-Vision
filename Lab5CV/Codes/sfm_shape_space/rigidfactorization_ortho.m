@@ -37,6 +37,15 @@ Zc = Zc - repmat(T,1,size(Zc,2));
     %R=;
     %S=;
 
+% Initial factorization using SVD
+[U,D,V] = svd(Zc,'econ');
+% Keep top-3 components for rigid reconstruction
+U3 = U(:,1:3);
+D3 = D(1:3,1:3);
+V3 = V(:,1:3);
+R = U3 * sqrt(D3);
+S = sqrt(D3) * V3';
+
 
 %--------------------------------------------------------------------------
 % Metric Upgrade Step
