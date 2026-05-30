@@ -32,10 +32,10 @@ end
 
 %----------------------------------  Tuning  ------------------------------
 % Rank of the shape basis
-test_options.K= 2;
+test_options.K= 4;
 % Including temporal priors, Binary entry: '1' on, '0' off
-test_options.priors.camera_prior = 0; % rotation smoothness prior
-test_options.priors.coeff_prior = 0; % deformation coefficients smoothness prior
+test_options.priors.camera_prior = 1; % rotation smoothness prior
+test_options.priors.coeff_prior = 1; % deformation coefficients smoothness prior
 % Penalty coefficients
 test_options.priors.camera_weight = 0.03; % rotation smoothness prior
 test_options.priors.coeff_weight = 0.4; % deformation smoothness prior

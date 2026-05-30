@@ -74,7 +74,110 @@
 \section{Experiments}
 \label{sec:Experiments}
 
+\subsection{1.3 face_mocap.mat}
+2D Reprojection Error:
+Before applying the non-linear optimization: 0.36214 \%
+After applying the non-linear optimization: 0.0019025 \%
 
+3D Reconstruction Error:
+Before optimization (rigid initialization): 3.1702 \%
+After optimization (non-rigid model): 16.6031 \%
+
+One important observation worth mentioning: 
+the 3D error increased after the non-rigid optimization (3.17 \% → 16.60 \%). 
+This is not a bug — it reflects that the non-rigid model with the current 
+K is overfitting the 2D reprojection (which drops dramatically) while losing 
+3D accuracy. This is a known limitation when K is too large or the 
+optimization reaches its iteration limit before converging (MaxIterations = 
+50 was hit). You should comment on this tradeoff in your report.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/synthetic_reconstruction.jpg}
+\caption{Synthetic 3D reconstruction}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/jacobian_synthetic.jpg}
+\caption{Jacobian Pattern}
+\end{subfigure}
+\caption{3D reconstruction of the synthetic sequence using non-rigid optimization}
+\label{fig:synthetic_3Dreconstruction}
+\end{figure}
+
+\subsection{1.3  face_real.mat}
+2D Reprojection Error:
+Before applying the non-linear optimization: 0.56616 \%
+After applying the non-linear optimization: 0.0030469 \%
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/real_reconstruction.jpg}
+\caption{Real 3D reconstruction}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/jacobian_real.jpg}
+\caption{Jacobian Pattern}
+\end{subfigure}
+\caption{3D reconstruction of the real sequence using non-rigid optimization}
+\label{fig:real_3Dreconstruction}
+\end{figure}
+
+\subsection{1.4 synthetic cases}
+
+For K = 2: with prior activated and desactivated.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/jacobian_K2_nopriors.jpg}
+\caption{Jacobian Pattern (No Priors)}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/jacobian_K2_priors.jpg}
+\caption{Jacobian Pattern (With Priors)}
+\end{subfigure}
+\caption{Jacobian pattern for K = 2 with and without priors}
+\label{fig:synthetic_reconstruction_K2}
+\end{figure}
+
+For K = 3: with prior activated and desactivated.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/jacobian_K3_nopriors.jpg}
+\caption{Jacobian Pattern (No Priors)}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/jacobian_K3_priors.jpg}
+\caption{Jacobian Pattern (With Priors)}
+\end{subfigure}
+\caption{Jacobian pattern for K = 3 with and without priors}
+\label{fig:synthetic_reconstruction_K3}
+\end{figure}
+
+For K = 4: with prior activated and desactivated.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/jacobian_K4_nopriors.jpg}
+\caption{Jacobian Pattern (No Priors)}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.45\linewidth}
+\includegraphics[width=\linewidth]{Figures/jacobian_K4_priors.jpg}
+\caption{Jacobian Pattern (With Priors)}
+\end{subfigure}
+\caption{Jacobian pattern for K = 4 with and without priors}
+\label{fig:synthetic_reconstruction_K4}
+\end{figure}
 
 \section{Conclusion}
 \label{sec:Conclusion}

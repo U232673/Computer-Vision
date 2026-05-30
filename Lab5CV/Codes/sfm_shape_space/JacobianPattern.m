@@ -122,12 +122,6 @@ try
 
     spy(J, 3);
     title(sprintf('Jacobian pattern  [%d x %d]  nz=%d', size(J,1), size(J,2), nnz(J)));
-
-    % Separator between data term and prior rows
-    if priors.coeff_prior || priors.camera_prior
-        yline(2*nnz(vij) + 0.5, 'g--', 'Priors', 'LabelHorizontalAlignment','left');
-    end
-    hold off;
 catch
     disp('Unable to display Jacobian pattern.');
 end
