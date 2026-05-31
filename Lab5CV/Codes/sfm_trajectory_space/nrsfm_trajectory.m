@@ -35,6 +35,16 @@ W = W - T*ones(1,size(W,2));
     % matrix Q (this step is provided later)
     %RHat=;
     %Xhat=;
+    [U, S, V] = svd(W, 'econ');
+
+    % Enforce the rank-3K constraint
+    U_k = U(:, 1:3*K);
+    S_k = S(1:3*K, 1:3*K);
+    V_k = V(:, 1:3*K);
+
+    % Compute the uncalibrated motion and shape matrices
+    RHat = U_k * sqrt(S_k);
+    Xhat = sqrt(S_k) * V_k';
 
 
 %-------------------------------------------------------------------------
@@ -54,3 +64,4 @@ D = inv(G'*G)*G'*W;
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Compute the final time-varying shape, X
     %X=;
+    X = C * D;
