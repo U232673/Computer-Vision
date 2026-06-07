@@ -85,7 +85,7 @@ $N_l{\times}N_l$ correlation matrix that captures second-order statistics of
 filter responses, discarding spatial arrangement and acting as a texture
 descriptor.
 
-The \textbf{style loss} for a single layer compares the Gram matrix of the
+\textbf{The style loss} for a single layer compares the Gram matrix of the
 generated image~$G^l$ with that of the style image~$A^l$:
 
 \begin{equation}
@@ -181,6 +181,43 @@ loss = (params.alpha * cLoss) + (params.beta * sLoss);
 \end{verbatim}
 
 
+\subsection{Facial Animation}
+
+\subsubsection{Overview of GANimation Architecture}
+
+The second task utilizes GANimation~\cite{pumarola2020ganimation} to animate a single facial photograph using continuous muscle activations called Action Units (AUs). The architecture isolates tasks into two primary neural blocks:
+\begin{itemize}
+    \item \textbf{The Generator ($G$):} Receives the source image and a target vector $\vec{y}$ of desired Action Units. Rather than generating a full scene from scratch, it yields a \textit{Color Content Map ($C$)} and an \textit{Attention Mask ($A$)}. The final composition is blended as:
+    \begin{equation}
+        \vec{I}_{\text{final}} = A \cdot C + (1 - A) \cdot \vec{I}_{\text{original}}
+    \end{equation}
+    \item \textbf{The Discriminator ($D$):} Evaluates outputs using two heads: an \textit{Adversarial Critic ($D_{\text{adv}}$)} to verify realistic skin textures, and an \textit{Expression Regressor ($D_{\text{reg}}$)} to estimate Action Unit values and check expression accuracy.
+\end{itemize}
+
+\subsubsection{Training Cost Functions}
+The training process minimizes a joint objective consisting of four target costs:
+\begin{enumerate}
+    \item \textbf{Adversarial Loss:} Forces the generator to create realistic, sharp textures to bypass $D_{\text{adv}}$.
+    \item \textbf{Expression Loss:} Measures the mean squared error between the requested input AUs and the parameters detected by $D_{\text{reg}}$ on the output face.
+    \item \textbf{Identity Preservation Loss:} Forces cycle consistency by re-animating the generated face back to its starting expression vector to ensure the person's identity is not altered.
+    \item \textbf{Attention Loss:} Penalizes large mask sizes, forcing the generator to only change active facial muscles.
+\end{enumerate}
+
+\subsubsection{Failure Cases and Technical Limitations}
+Analyzing the network reveals two distinct scenario limitations:
+\begin{itemize}
+    \item \textbf{Extreme Head Poses:} When subjects turn completely to the side, features distort because the flat 2D architecture lacks 3D geometric depth knowledge, causing the expression regressor to lose tracking markers.
+    \item \textbf{Partial Face Occlusions:} When objects like hands or thick glasses cover skin tissue, the generator treats them as face parts and attempts to warp them into expressions, causing unnatural visual artifacts.
+\end{itemize}
+
+\subsubsection{Theoretical Upgrades}
+To resolve these errors, two architectural improvements can be proposed from a theoretical standpoint:
+\begin{enumerate}
+    \item \textbf{3D Morphable Models (3DMM):} Fitting a 3D physical mesh structure over the input face would allow Action Units to deform along a 3D topology, keeping expressions stable across extreme profile angles.
+    \item \textbf{Semantic Segmentation Masking:} Incorporating a pre-processing segmentation layer to identify non-face objects (such as hands or glasses) would allow the attention module to lock those pixel zones completely unchanged.
+\end{enumerate}
+
+
 \section{Experiments}
 \label{sec:Experiments}
 
@@ -255,6 +292,51 @@ experiments.
 \end{figure}
 
 \subsubsection{Qualitative Evaluation}
+
+\paragraph{Experiment 1: \textit{The Starry Night} style.}
+From the generated image, the lighthouse structure is clearly recognisable. For instance, the white tower,
+the red-roofed buildings, and the grassy foreground are all preserved. Moreover, the
+most visible effect of the style transfer is in the texture and colour palette. The
+sky and the surface of the tower have adopted the swirling, wave-like brush
+strokes characteristic of van Gogh's painting, and the dominant colours have
+shifted towards the blues and yellows of \textit{The Starry Night}. The
+semantic content is therefore well maintained, while the artistic texture is
+clearly transferred. At 100 iterations the result still shows some roughness,
+especially at the edges of the tower. Running for more iterations would likely 
+produce a smoother output with stronger stylisation, but the current result already 
+demonstrates the algorithm's ability to blend content and style effectively.
+
+\paragraph{Experiment 2: \textit{The Persistence of Memory} style.}
+Again, the lighthouse structure is preserved, but the colour
+palette has changed significantly. The warm sandy browns and orange tones of
+Dalí's painting dominate the output, replacing the original blue sky and green
+grass. The textures are less sharp than in Experiment~1, which reflects the
+flatter, more blended surface style of Dalí's painting compared to the
+thick brush strokes of van Gogh. Some fine details of the lighthouse, such as
+the windows, are harder to distinguish in this result, suggesting that the Dalí
+style is more aggressive in overwriting low-level detail.
+
+\paragraph{Comparison between the two styles.}
+Both experiments confirm that the algorithm successfully separates and
+recombines content and style. The van Gogh transfer produces a more visually
+striking result because its swirling textures create a strong contrast with the
+original photograph. The Dalí transfer is subtler: the content is equally
+preserved, but the output looks closer to a colour-graded photograph than to a
+painting. This difference is explained by the style images themselves: van
+Gogh's work has highly structured, repeated brush-stroke patterns that the Gram
+matrices capture easily, while Dalí's painting has smoother gradients and less
+repetitive texture.
+
+\subsection{Facial Animation}
+\label{sec:exp_animation}
+
+\subsubsection{Experimental Setup and Qualitative Discussion}
+The facial animation framework was analyzed using the target configurations. The evaluation demonstrates the effectiveness of the attention-guided generator scheme in decoupled expression updates:
+\begin{itemize}
+    \item \textbf{Expression Scaling:} The model successfully adjusts localized muscle coordinates. Activating continuous elements like lip corner pullers causes smooth mouth movements without distorting global facial characteristics.
+    \item \textbf{Attention Mask Performance:} The generated attention maps successfully identify active zones. Regions undergoing adjustments show values near $1$, while static structures (hair, ears, background details) remain near $0$, leaving them completely crisp and unaltered.
+    \item \textbf{Identity Preservation:} Because pixel changes are blended strictly through active mask paths, the subject's baseline identifiers (bone layouts, eye colors, and gender traits) stay completely safe throughout the animation cycle.
+\end{itemize}
 
 
 \section{Conclusion}
