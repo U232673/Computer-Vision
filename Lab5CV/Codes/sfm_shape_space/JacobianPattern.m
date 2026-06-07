@@ -4,7 +4,7 @@
 %%%              NON-RIGID STRUCTURE FROM MOTION - OPTIMIZATION 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 
-function [J]=JacobianPattern(K,n_frames,n_points,vij,priors)
+% function [J]=JacobianPattern(K,n_frames,n_points,vij,priors)
 % Input
 % K: shape basis rank
 % n_frames: number of frames 
@@ -20,8 +20,13 @@ function [J]=JacobianPattern(K,n_frames,n_points,vij,priors)
  
  
 % J data term is shorter than 2xFxP if the FxP visibility contains zeros
+n_frames = 5;
+n_points = 6;
+priors.camera_prior = 1;
+priors.coeff_prior = 1;
 prior_terms = priors.coeff_prior + priors.camera_prior;
-
+K = 3;
+vij = ones(n_frames,n_points);
 
 % Prior_terms must be a number from 0 to 2
 if prior_terms < 0 || prior_terms > 2
@@ -56,7 +61,7 @@ for c = 1:2*n_frames
     % Columns of the 4 quaternion rotation parameters for frame f
     quat_cols = frame_start + K + (1:4);
     % Column of the single relevant translation (tx for u, ty for v)
-    trans_col = frame_start + K + 4 + trans_index;
+    trans_col = frame_start + K + trans_index;
 
     % Iterate over all points and only process visible ones
     for p = 1:n_points

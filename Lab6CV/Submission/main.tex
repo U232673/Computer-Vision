@@ -29,11 +29,232 @@
 \section{Methods}
 \label{sec:Methods}
 
+\subsection{Artistic Style}
+
+\subsubsection{Overview of the Algorithm}
+
+The neural style-transfer algorithm of Gatys \textit{et al.}~\cite{gatys2015neural}
+solves an \emph{image-optimisation} problem: starting from a white-noise image
+$\vec{x}$, gradient descent is applied to minimise a composite loss that
+simultaneously penalises deviation from the \emph{content} of a reference
+photograph $\vec{p}$ and from the \emph{style} of a reference artwork~$\vec{a}$.
+The network weights are \textbf{kept fixed throughout}; only the pixel values of
+$\vec{x}$ are updated.
+
+\subsubsection{Content Representation and Content Loss}
+
+Each convolutional layer $l$ with $N_l$ filters produces $N_l$ feature maps of
+spatial size $M_l$ (height~$\times$~width). The responses are stored in a
+matrix $F^l \in \mathbb{R}^{N_l \times M_l}$, where $F^l_{ij}$ is the
+activation of filter~$i$ at spatial position~$j$.
+
+Higher layers encode \emph{what} is in the image (objects, their arrangement)
+while discarding exact pixel detail; lower layers preserve fine-grained pixel
+information. The paper uses layer \texttt{conv4\_2} as the content layer
+because it retains high-level structure without sacrificing all spatial detail.
+
+The \textbf{content loss} measures the mean-squared difference between the
+feature responses of the generated image~$\vec{x}$ and the content
+image~$\vec{p}$ at layer~$l$:
+
+\begin{equation}
+    \mathcal{L}_{\text{content}}(\vec{p},\vec{x},l)
+    = \frac{1}{2}\sum_{i,j}\!\left(F^l_{ij} - P^l_{ij}\right)^2,
+    \label{eq:content_loss}
+\end{equation}
+
+\noindent where $P^l$ and $F^l$ are the feature representations of $\vec{p}$
+and $\vec{x}$ at layer~$l$, respectively. Minimising this loss drives the
+generated image to produce similar activations, thereby preserving the semantic
+content.
+
+\subsubsection{Style Representation and Style Loss}
+
+Style is captured not by \emph{where} features activate but by \emph{how they
+co-activate} across the spatial extent of a layer. This is formalised through
+the \textbf{Gram matrix}:
+
+\begin{equation}
+    G^l_{ij} = \sum_{k} F^l_{ik}\, F^l_{jk},
+    \label{eq:gram}
+\end{equation}
+
+\noindent which contains the inner product between the vectorised feature
+maps~$i$ and~$j$ in layer~$l$. The Gram matrix is therefore a
+$N_l{\times}N_l$ correlation matrix that captures second-order statistics of
+filter responses, discarding spatial arrangement and acting as a texture
+descriptor.
+
+The \textbf{style loss} for a single layer compares the Gram matrix of the
+generated image~$G^l$ with that of the style image~$A^l$:
+
+\begin{equation}
+    E_l = \frac{1}{4N_l^2 M_l^2}
+          \sum_{i,j}\!\left(G^l_{ij} - A^l_{ij}\right)^2.
+    \label{eq:layer_style_loss}
+\end{equation}
+
+The total style loss aggregates contributions from a set of layers $\mathcal{L}$
+weighted by $w_l$:
+
+\begin{equation}
+    \mathcal{L}_{\text{style}}(\vec{a},\vec{x})
+    = \sum_{l \in \mathcal{L}} w_l\, E_l.
+    \label{eq:style_loss}
+\end{equation}
+
+In practice, layers \texttt{conv1\_1}, \texttt{conv2\_1}, \texttt{conv3\_1},
+\texttt{conv4\_1}, and \texttt{conv5\_1} are used with equal weights
+$w_l = 1/5$. Including multiple scales allows the style representation to
+capture textures at different granularities.
+
+\subsubsection{Total Loss and Optimisation}
+
+The two objectives are combined into a single \textbf{total loss}:
+
+\begin{equation}
+    \mathcal{L}_{\text{total}}(\vec{p},\vec{a},\vec{x})
+    = \alpha\,\mathcal{L}_{\text{content}}(\vec{p},\vec{x})
+    + \beta\,\mathcal{L}_{\text{style}}(\vec{a},\vec{x}),
+    \label{eq:total_loss}
+\end{equation}
+
+\noindent where $\alpha$ and~$\beta$ are scalar weights that control the
+content-style trade-off.  A large ratio $\alpha/\beta$ preserves content at the
+expense of style fidelity; a small ratio emphasises stylisation. Typical values
+used in~\cite{gatys2015neural} are $\alpha/\beta \in \{10^{-3}, 10^{-4}\}$.
+
+Gradients of $\mathcal{L}_{\text{total}}$ with respect to the pixel values
+of~$\vec{x}$ are computed via standard back-propagation and used to update
+$\vec{x}$ iteratively (L-BFGS or Adam optimiser). The network weights are
+never modified.
+
+\subsubsection{Identification of the Loss in the Code}
+
+The total loss defined in Equation~\eqref{eq:total_loss} is implemented in
+\texttt{main.m}. The content loss (Eq.~\ref{eq:content_loss}) appears in the
+following lines:
+
+\begin{verbatim}
+function loss = contentLoss(transferContentFeatures,contentFeatures,contentWeights)
+    loss = 0;
+    for i=1:numel(contentFeatures)
+        temp = 0.5 .* mean((transferContentFeatures{1,i} - contentFeatures{1,i}).^2,"all");
+        loss = loss + (contentWeights(i)*temp);
+    end
+end
+\end{verbatim}
+
+The Gram matrix (Eq.~\ref{eq:gram}) is computed as:
+
+\begin{verbatim}
+function gramMatrix = calculateGramMatrix(featureMap)
+    [H,W,C] = size(featureMap);
+    reshapedFeatures = reshape(featureMap,H*W,C);
+    gramMatrix = reshapedFeatures' * reshapedFeatures;
+end
+\end{verbatim}
+
+The style loss per layer (Eq.~\ref{eq:layer_style_loss}) is:
+
+\begin{verbatim}
+function loss = styleLoss(transferStyleFeatures,styleFeatures,styleWeights)
+    loss = 0;
+
+    for i=1:numel(styleFeatures)
+        tsf = transferStyleFeatures{1,i};
+        sf = styleFeatures{1,i};    
+        [h,w,c] = size(sf);
+
+        gramStyle = calculateGramMatrix(sf);
+        gramTransfer = calculateGramMatrix(tsf);
+        sLoss = mean((gramTransfer - gramStyle).^2,"all") / ((h*w*c)^2);
+        loss = loss + (styleWeights(i)*sLoss);
+    end
+end
+\end{verbatim}
+
+Finally, the weighted combination (Eq.~\ref{eq:total_loss}) is:
+
+\begin{verbatim}
+loss = (params.alpha * cLoss) + (params.beta * sLoss);
+\end{verbatim}
 
 
 \section{Experiments}
 \label{sec:Experiments}
 
+\subsection{Artistic Style}
+\label{sec:exp_style}
+
+\subsubsection{Experimental Setup}
+
+All experiments used the VGG-19 network with average-pooling. The content
+image was \texttt{lighthouse.png}. Two style images
+were selected from the provided data:
+ 
+\begin{itemize}
+\item \textbf{Style~1:} \texttt{starryNight.jpg} - \textit{The Starry Night} by Vincent van Gogh (1889).
+\item \textbf{Style~2:} \texttt{dali.jpg} - \textit{The Persistence of Memory} by Salvador Dalí (1931).
+\end{itemize}
+
+Experiments were run for \textbf{100 iterations} on CPU. The content layer was \texttt{conv4\_2}
+and the style layers were \texttt{conv1\_1} through \texttt{conv5\_1}.
+The ratio $\alpha/\beta = 10^{-3}$ was used for both
+experiments.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.3\textwidth]{Figures/lighthouse.png}
+\caption{Content image: \texttt{lighthouse.png}.}
+\label{fig:content}
+\end{figure}
+
+\subsubsection{Results}
+
+% Style 1 Experiment: starryNight.jpg
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.3\textwidth}
+\centering
+\includegraphics[width=\textwidth]{Figures/starryNight.jpg}
+\caption{Style image: \textit{The Starry Night}.}
+\label{fig:style1}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.3\textwidth}
+\centering
+\includegraphics[width=\textwidth]{Figures/output_starryNight.jpg}
+\caption{Generated image (100 iter.).}
+\label{fig:output1}
+\end{subfigure}
+\caption{}
+\label{fig:experiment1}
+\end{figure}
+
+% Style 2 Experiment: dali.jpg
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.3\textwidth}
+\centering
+\includegraphics[width=\textwidth]{Figures/dali.jpg}
+\caption{Style image: \textit{The Persistence of Memory}.}
+\label{fig:style2}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.3\textwidth}
+\centering
+\includegraphics[width=\textwidth]{Figures/output_dali.jpg}
+\caption{Generated image (100 iter.).}
+\label{fig:output2}
+\end{subfigure}
+\caption{}
+\label{fig:experiment2}
+\end{figure}
+
+\subsubsection{Qualitative Evaluation}
 
 
 \section{Conclusion}

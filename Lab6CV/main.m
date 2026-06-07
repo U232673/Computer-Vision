@@ -14,7 +14,7 @@ addpath data
 
 
 % Load style and content picures
-styleImage = im2double(imread("sunflower.jpg")); % <------------ To tune
+styleImage = im2double(imread("dali.jpg")); % <------------ To tune
 contentImage = imread("lighthouse.png");  % <------------ To tune
 
 % % You could consider a size reduction
@@ -75,7 +75,7 @@ styleTransferOptions.beta = 1e3;
 
 % Total number of iterations. You could use a bigger value if GPU is
 % available
-numIterations = 50;   % <------------ To tune
+numIterations = 100;   % <------------ To tune
 
 % ADAM Optimizator
 learningRate = 2;
