@@ -24,7 +24,28 @@
 
 \section{Introduction}
 
+We present this report on the work carried out in Laboratory~6 on conditional image
+generation. Two different approaches are studied.
 
+In the first task, we cover \textit{artistic style transfer} using the CNN-based
+algorithm proposed by Gatys \textit{et al.}~\cite{gatys2015neural}. Given a
+content image and a style image, the method synthesises a new image that
+preserves the semantic structure of the former while adopting the visual
+texture and colour palette of the latter. The key insight is that a deep
+convolutional network trained for object recognition implicitly separates
+content, encoded in high-level feature activations, from style, encoded in
+the second-order statistics of those activations across multiple layers.
+
+Moreover, in the second task, we cover \textit{facial animation} using
+GANimation~\cite{pumarola2020ganimation}, a GAN-based method that animates a
+single RGB portrait by conditioning the generator on Action Unit (AU)
+annotations. AUs describe facial muscle movements continuously, allowing fine
+control over the intensity and combination of different expressions without
+requiring paired training data.
+
+Both tasks are analysed theoretically, with the loss functions identified in
+the corresponding code. For the artistic style task, experiments are also
+run and the results are evaluated qualitatively.
 
 \section{Methods}
 \label{sec:Methods}
@@ -194,13 +215,26 @@ The second task utilizes GANimation~\cite{pumarola2020ganimation} to animate a s
     \item \textbf{The Discriminator ($D$):} Evaluates outputs using two heads: an \textit{Adversarial Critic ($D_{\text{adv}}$)} to verify realistic skin textures, and an \textit{Expression Regressor ($D_{\text{reg}}$)} to estimate Action Unit values and check expression accuracy.
 \end{itemize}
 
-\subsubsection{Training Cost Functions}
-The training process minimizes a joint objective consisting of four target costs:
+\subsubsection{Identification of the Cost Functions in the Code}
+Following the implementation code repository, the training routine optimizes a joint objective function. The total costs for the Generator and Discriminator handle four distinct loss terms:
+
 \begin{enumerate}
-    \item \textbf{Adversarial Loss:} Forces the generator to create realistic, sharp textures to bypass $D_{\text{adv}}$.
-    \item \textbf{Expression Loss:} Measures the mean squared error between the requested input AUs and the parameters detected by $D_{\text{reg}}$ on the output face.
-    \item \textbf{Identity Preservation Loss:} Forces cycle consistency by re-animating the generated face back to its starting expression vector to ensure the person's identity is not altered.
-    \item \textbf{Attention Loss:} Penalizes large mask sizes, forcing the generator to only change active facial muscles.
+    \item \textbf{Adversarial Loss (\texttt{criterion_GAN}):} Measures image realism using an LSGAN (Mean Squared Error) or WGAN constraint pattern to verify whether the visual output successfully matches real skin profiles:
+\begin{verbatim}
+loss_D_g_gan = criterion_GAN(D_g_gan, True)
+\end{verbatim}
+    \item \textbf{Expression Loss (\texttt{criterion_wreg}):} Evaluates structural regression by computing the mean squared distance between input target Action Units and the muscle activations extracted from the generated face by the critic head:
+\begin{verbatim}
+loss_G_g_reg = criterion_wreg(D_g_reg, target_aus)
+\end{verbatim}
+    \item \textbf{Identity / Cycle Consistency Loss (\texttt{criterion_id}):} Guarantees identity tracking by passing the generated facial canvas back to the generator with the subject's original expression vector, penalizing pixel-level structural L1 distances:
+\begin{verbatim}
+loss_G_back = criterion_id(real_img_back, real_img)
+\end{verbatim}
+    \item \textbf{Attention Mask Loss:} Enforces an L1 normalization penalty directly on the attention mask array pixels to minimize distortion and keep moving zones tightly localized:
+\begin{verbatim}
+loss_G_mask = torch.mean(torch.abs(attention_mask))
+\end{verbatim}
 \end{enumerate}
 
 \subsubsection{Failure Cases and Technical Limitations}
@@ -229,7 +263,7 @@ To resolve these errors, two architectural improvements can be proposed from a t
 All experiments used the VGG-19 network with average-pooling. The content
 image was \texttt{lighthouse.png}. Two style images
 were selected from the provided data:
- 
+
 \begin{itemize}
 \item \textbf{Style~1:} \texttt{starryNight.jpg} - \textit{The Starry Night} by Vincent van Gogh (1889).
 \item \textbf{Style~2:} \texttt{dali.jpg} - \textit{The Persistence of Memory} by Salvador Dalí (1931).
@@ -327,22 +361,38 @@ Gogh's work has highly structured, repeated brush-stroke patterns that the Gram
 matrices capture easily, while Dalí's painting has smoother gradients and less
 repetitive texture.
 
-\subsection{Facial Animation}
-\label{sec:exp_animation}
-
-\subsubsection{Experimental Setup and Qualitative Discussion}
-The facial animation framework was analyzed using the target configurations. The evaluation demonstrates the effectiveness of the attention-guided generator scheme in decoupled expression updates:
-\begin{itemize}
-    \item \textbf{Expression Scaling:} The model successfully adjusts localized muscle coordinates. Activating continuous elements like lip corner pullers causes smooth mouth movements without distorting global facial characteristics.
-    \item \textbf{Attention Mask Performance:} The generated attention maps successfully identify active zones. Regions undergoing adjustments show values near $1$, while static structures (hair, ears, background details) remain near $0$, leaving them completely crisp and unaltered.
-    \item \textbf{Identity Preservation:} Because pixel changes are blended strictly through active mask paths, the subject's baseline identifiers (bone layouts, eye colors, and gender traits) stay completely safe throughout the animation cycle.
-\end{itemize}
-
 
 \section{Conclusion}
 \label{sec:Conclusion}
 
+In this laboratory, we have explored two complementary strategies for conditional image
+generation based on deep learning.
 
+For the artistic style transfer task, the algorithm of Gatys \textit{et
+al.}~\cite{gatys2015neural} was studied and implemented. The method
+successfully disentangles content and style by using the feature activations
+of a fixed VGG-19 network: content is preserved through layer \texttt{conv4\_2},
+while style is captured by Gram matrices computed across five convolutional
+layers. The total loss in Equation~\eqref{eq:total_loss} balances both
+objectives and is minimised by updating only the pixel values of the generated
+image. The experiments showed that both styles were transferred convincingly
+at 100 iterations on CPU. The van Gogh style produced a visually striking
+result with clear swirling textures and a blue-yellow palette, while the
+Dalí style produced a subtler output dominated by warm tones and smooth
+gradients. In both cases the content of the lighthouse image remained
+recognisable, confirming that the chosen ratio $\alpha/\beta = 10^{-3}$
+correctly prioritises content preservation. More iterations or GPU computation
+would further improve the quality of the generated images.
+
+For the facial animation task, the GANimation architecture was analysed
+theoretically. The generator produces an attention mask and a colour map that
+are blended to modify only the relevant facial regions, while the discriminator
+jointly ensures visual realism and expression accuracy through adversarial and
+regression losses. The main failure cases identified, extreme head poses and
+face occlusions, arise from the lack of 3D geometric knowledge in the model.
+Two improvements were proposed to address these limitations: incorporating 3D
+morphable models to handle out-of-plane rotations, and adding a semantic
+segmentation step to prevent non-face regions from being incorrectly warped.
 
 \nocite{*}
 \bibliographystyle{ieeetr}
